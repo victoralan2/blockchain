@@ -6,3 +6,16 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bcrypt = "*"
+crypto-hash = "*"
+hex = "*"
+rand = "*"
+rust-argon2 = "*"
+rand_core="0.6.3"
+num-bigint = { version = "*", features = ["rand"] }
+num-traits = "0.2.14"
+num-integer = "0.1.45"
+num-bigint-dig = { version = "*", features = ["prime", "rand"] }
+serde = "1.0.188"
+pqcrypto-dilithium = "0.4.6"
+pqcrypto-traits = "0.3.4"

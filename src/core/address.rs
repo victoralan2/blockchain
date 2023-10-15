@@ -1,6 +1,6 @@
 use pqcrypto_dilithium::dilithium5::PublicKey;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Address {
 	public_key: PublicKey,
 	address: String
