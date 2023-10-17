@@ -5,6 +5,9 @@ use crypto_hash::Algorithm;
 pub fn hash(data: &[u8]) -> Vec<u8> {
 	sha256(data)
 }
+pub fn mine_hash(data: &[u8]) -> Vec<u8> {
+	todo!()
+}
 pub fn argon2(data: &[u8]) -> Vec<u8> {
 	let mut config = Config::default();
 	config.lanes = 4;

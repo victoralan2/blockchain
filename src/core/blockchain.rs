@@ -1,15 +1,19 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc::channel;
 use std::time::SystemTime;
 use crate::core::address::Address;
 use crate::core::block::Block;
 use crate::core::blockdata::{BlockData, CoinBaseTransaction};
+use crate::core::Hashable;
 
 #[derive(Clone)]
 pub struct BlockChainConfig {
-	difficulty: u8,
-	reward: u64,
-	block_size: usize,
-	trust_threshold: u32,
+	pub(crate) difficulty: u8,
+	pub(crate) reward: u64,
+	pub(crate) block_size: usize,
+	pub(crate) trust_threshold: u32,
 }
 
 #[derive(Clone)]
@@ -17,16 +21,16 @@ pub struct BlockChain {
 	chain: Vec<Block>,
 	cache: HashMap<Address, u64>,
 	mempool: Vec<BlockData>,
-	forks: Vec<(Vec<Block>, usize)>, // Store forks and the index of the diverging block
 	configuration: BlockChainConfig,
 }
+
 impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
-		BlockChain { chain, cache: Default::default(), mempool: Vec::new(), forks: vec![], configuration }
+		BlockChain { chain, cache: Default::default(), mempool: Vec::new(), configuration }
 	}
 	pub fn new(chain: Vec<Block>, mempool: Vec<BlockData>, configuration: BlockChainConfig) -> Self {
-		BlockChain { chain, cache: Default::default(), mempool, forks: vec![], configuration }
+		BlockChain { chain, cache: Default::default(), mempool, configuration }
 	}
 	fn mine_one_block(&mut self, miner: Address) -> Option<Block> {
 		if self.mempool.len() >= self.configuration.block_size {
@@ -42,7 +46,7 @@ impl BlockChain {
 					.duration_since(SystemTime::UNIX_EPOCH)
 					.unwrap()
 					.as_secs(),
-				self.chain.len() as u32,
+				self.chain.len(),
 			);
 
 			let coinbase_transaction = CoinBaseTransaction::new(miner, self.configuration.reward);
@@ -51,89 +55,79 @@ impl BlockChain {
 			if let Some(mut last_block) = self.get_last_block().cloned() {
 				last_block.update_hash();
 				let hash_val = last_block.hash;
-				new_block.previous_hash = hash_val;
+				new_block.header.previous_hash = hash_val;
 				// TODO: node.current_block_mining_hash = new_block.hash;
-				if new_block.mine(self.configuration.difficulty) {
-					println!("Block mined, nonce to solve PoW: {}", new_block.nonce);
+				let mut keep_mining = Arc::new(AtomicBool::new(true));
+				if new_block.mine(self.configuration.difficulty, keep_mining.clone()) {
+					println!("Block mined, nonce to solve PoW: {}", new_block.header.nonce);
 					return Some(new_block);
 				}
 			}
 		}
 		None
 	}
-	pub fn get_block_at(&self, index: usize) -> &Block {
-		&self.chain[index]
+	pub fn get_balance_at(&self, address: &Address, index: usize) -> u64 {
+		let addr = address.address.clone();
+		let trusted_chain = &self.chain[..(self.chain.len() - self.configuration.trust_threshold as usize)];
+		let mut balance = 0u64;
+		for block in &trusted_chain[..index] {
+			if block.coinbase_transaction.receiver.address == addr {
+				balance += block.coinbase_transaction.amount;
+			}
+			for t in block.data
+				.iter()
+				.filter_map(|d| if let BlockData::TX(tx) = d { Some(tx) } else { None }) // Filters out all non transactions
+			{
+				if t.recipient_address.address == addr {
+					balance += t.amount;
+				}
+			}
+		}
+		balance
+	}
+	pub fn get_balance(&self, address: &Address) -> u64 {
+		self.get_balance_at(address, self.chain.len())
+	}
+	pub fn get_block_at(&self, index: usize) -> Option<&Block> {
+		if index < self.chain.len(){
+			Some(&self.chain[index])
+		} else {
+			None
+		}
 	}
 	pub fn get_len(&self) -> usize {
 		self.chain.len()
 	}
-	pub fn get_last_block(&self) -> Option<&Block>{
+	pub fn get_trusted_len(&self) -> usize {
+		let len = self.chain.len();
+		if len > self.configuration.trust_threshold as usize {
+			self.get_len() - self.configuration.trust_threshold as usize
+		} else {
+			0
+		}
+	}
+	pub fn get_last_trusted_block(&self) -> &Block {
+		&self.chain[self.get_trusted_len() - 1]
+	}
+	pub fn get_last_block(&self) -> Option<&Block> {
 		self.chain.last()
 	}
+
+	/// Returns false if the blockchain is needed
 	pub fn add_block(&mut self, new_block: Block) -> bool {
-		if new_block.is_valid(self) {
-			let last_block = self.get_last_block().cloned();
-
-			match last_block {
-				Some(last) => {
-					if new_block.previous_hash == last.hash {
-						// Add the block to the main chain
-						self.chain.push(new_block);
-					} else {
-						// Check if it's a fork
-						let mut is_in_a_fork = false;
-						for (fork, diverging_index) in &mut self.forks {
-							if new_block.previous_hash == fork.last().map(|b| b.hash).unwrap_or([0; 32]) {
-								fork.push(new_block);
-								is_in_a_fork = true;
-								break;
-							}
-						}
-
-						if !is_in_a_fork {
-							// Create a new fork
-							let mut fork = vec![new_block];
-							let diverging_index = self.chain.iter().position(|block| block.hash == new_block.previous_hash).unwrap_or(0);
-							self.forks.push((fork, diverging_index));
-						}
-					}
-				},
-				None => {
-					// If there are no blocks yet, this is the genesis block
+		// TODO: CHECK IF THE TRANSACTIONS ARE THE ONES AT MEMPOOL AND THEN REMOVE
+		let last_block = self.get_last_block().cloned();
+		if let Some(last_block) = last_block {
+			if last_block.header.previous_hash == new_block.hash {
+				if last_block.is_valid(self) {
+					// Todo: some more checks and add block to blockchain
 					self.chain.push(new_block);
 				}
-			}
-			self.resolve_forks();
-			true
-		} else {
-			false
-		}
-	}
-	pub fn resolve_forks(&mut self) { // TODO: CALL THIS
-		let mut longest_chain_len = self.chain.len();
-
-		// Iterate through the forks to find the longest chain
-		let mut new_forks = Vec::new();
-
-		for (fork, diverging_index) in &self.forks {
-			let fork_len = fork.len() + diverging_index;
-			let difference1 = fork_len as isize - longest_chain_len as isize;
-			let difference2 = longest_chain_len as isize - fork_len as isize;
-
-			if difference1 >= self.configuration.trust_threshold as isize { // If the current fork has at least *configuration.trust_threshold* more blocks than the longest
-				// This fork is longer, consider it as the new main chain
-				longest_chain_len = fork.len() + diverging_index;
-				// Update the main chain
-				self.chain.remove(*diverging_index);
-				self.chain.append(&mut fork.clone());
-				// TODO: Update the cache and other necessary state
-				// ...
-			} else if difference2 <= self.configuration.trust_threshold as isize { // If the longest chain has least than *configuration.trust_threshold* than the current chain
-				// This means that fork can still be valid
-				new_forks.push((fork.clone(), *diverging_index));
+			} else if new_block.index > last_block.index {
+				// Todo: ask for blockchain
+				return false;
 			}
 		}
-
-		self.forks = new_forks;
+		true
 	}
 }
