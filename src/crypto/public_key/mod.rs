@@ -2,8 +2,8 @@ extern crate num_bigint;
 extern crate num_traits;
 extern crate rand;
 
-use pqcrypto_dilithium::{dilithium5};
-use pqcrypto_dilithium::dilithium5::{keypair, sign, SecretKey, open, PublicKey};
+use pqcrypto_dilithium::dilithium5;
+use pqcrypto_dilithium::dilithium5::{keypair, open, PublicKey, SecretKey, sign};
 use pqcrypto_traits::sign;
 use pqcrypto_traits::sign::{PublicKey as _, SecretKey as _, SignedMessage as _};
 
@@ -20,7 +20,7 @@ impl Dilithium {
 		let signature = dilithium5::SignedMessage::from_bytes(data).ok()?;
 		open(&signature, key).ok()
 	}
-	pub fn serialize_pkey(key: impl sign::PublicKey) -> Vec<u8> {
+	pub fn serialize_pkey(key: &impl sign::PublicKey) -> Vec<u8> {
 		key.as_bytes().to_vec()
 	}
 	pub fn pkey_from_bytes(bytes: &[u8]) -> pqcrypto_traits::Result<PublicKey> {
@@ -29,7 +29,7 @@ impl Dilithium {
 	pub fn skey_from_bytes(bytes: &[u8]) -> pqcrypto_traits::Result<SecretKey> {
 		SecretKey::from_bytes(&bytes)
 	}
-	pub fn serialize_skey(key: impl sign::SecretKey) -> Vec<u8> {
+	pub fn serialize_skey(key: &impl sign::SecretKey) -> Vec<u8> {
 		key.as_bytes().to_vec()
 	}
 }
