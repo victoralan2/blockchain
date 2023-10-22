@@ -1,23 +1,17 @@
-use std::net::SocketAddr;
-use serde::{Deserialize, Serialize};
 
-pub enum DataType {
-	Disconnect,
+pub enum RequestType {
 	P2PDiscover,
 	NewBlockData,
 	NewBlock,
 	SyncRequest,
 }
 
-impl TryFrom<Vec<u8>> for DataType {
+impl TryFrom<Vec<u8>> for RequestType {
 	type Error = ();
 
-	fn try_from(value: Vec<u8>) -> Result<DataType, ()> {
+	fn try_from(value: Vec<u8>) -> Result<RequestType, ()> {
 		if let Ok(str) = String::from_utf8(value) {
 			match str.as_str() {
-				"Disconnect" => {
-					Ok(Self::Disconnect)
-				},
 				"P2PDiscover" => {
 					Ok(Self::P2PDiscover)
 				},

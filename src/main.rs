@@ -1,4 +1,5 @@
 use std::collections::{BinaryHeap, VecDeque};
+use std::hint::black_box;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -11,33 +12,25 @@ use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
 use crate::core::blockdata::{BlockData, Transaction};
-use crate::p2p::node::Node;
 
 mod crypto;
 mod core;
 mod p2p;
 
+#[derive(Clone)]
 pub struct Test {
 	pub value: u64,
 }
 impl Test {
 	pub fn test(&mut self) {
-		// let this = Arc::new(self);
-		// let self_copy = this.clone();
-		// task::spawn( async move {
-		// 	for _ in 0..100000000 {
-		// 		println!("{}", self_copy.value);
-		// 	}
-		// });
-		for i in 0..1000000000 {
-			self.value = i;
-		}
+
 	}
 }
 #[tokio::main]
 async fn main() {
-
-
+	let mut test = Test{value: 0};
+	test.test();
+	println!("K: {}", test.value);
 }
 fn test_blockchain() {
 	let config = BlockChainConfig {

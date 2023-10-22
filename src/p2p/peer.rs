@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Peer {
 	pub address: SocketAddr
 }

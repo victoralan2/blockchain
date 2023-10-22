@@ -36,6 +36,14 @@ impl BlockChain {
 	pub fn new(chain: Vec<Block>, mempool: Vec<BlockData>, configuration: BlockChainConfig) -> Self {
 		BlockChain { chain, cache: Default::default(), mempool, configuration }
 	}
+	pub fn replace(&mut self, new: BlockChain) {
+		self.cache = new.cache;
+		self.chain = new.chain;
+		self.mempool = new.mempool;
+	}
+	pub fn truncate(&mut self, index: usize) {
+		self.chain.truncate(index);
+	}
 	/// Validates and adds the blockdata to the memory pool if valid.
 	/// Returns whether the it was added or not
 	pub fn add_data_to_mempool(&mut self, data: BlockData) -> bool{
