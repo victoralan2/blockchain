@@ -11,7 +11,6 @@ use pqcrypto_traits::sign::SecretKey;
 use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::blockdata::{BlockData, Transaction};
 
 mod crypto;
 mod core;
@@ -38,8 +37,6 @@ fn test_blockchain() {
 		reward: 10,
 		block_size: 1,
 		trust_threshold: 0,
-		max_data_size: 512,
-		data_fee_multiplier: 0.5,
 		transaction_fee_multiplier: 0.5,
 		max_transaction_fee: 10,
 	};
@@ -57,9 +54,9 @@ fn test_blockchain() {
 	t2.sign(&bob.2).unwrap();
 	t3.sign(&charlie.2).unwrap();
 
-	let b1 = Block::new(vec![BlockData::TX(t1)], 0, 1);
-	let b2 = Block::new(vec![BlockData::TX(t2)], 0, 2);
-	let b3 = Block::new(vec![BlockData::TX(t3)], 0, 3);
+	let b1 = Block::new(vec![t1], 0, 1);
+	let b2 = Block::new(vec![t2], 0, 2);
+	let b3 = Block::new(vec![t3], 0, 3);
 
 	blockchain.add_block(b1);
 	blockchain.add_block(b2);

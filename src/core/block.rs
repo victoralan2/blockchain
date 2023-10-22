@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::blockdata::BlockData;
 use crate::core::Hashable;
+use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
@@ -26,11 +26,11 @@ pub struct Block {
 	pub index: usize,
 	pub header: BlockHeader,
 	pub hash: [u8; 32],
-	pub data: Vec<BlockData>,
+	pub transactions: Vec<Transaction>,
 }
 
 impl Block {
-	pub fn new(data: Vec<BlockData>, time: u64, index: usize) -> Self {
+	pub fn new(transactions: Vec<Transaction>, time: u64, index: usize) -> Self {
 		let block_header = BlockHeader{
 			previous_hash:  [0u8; 32],
 			time,
@@ -38,7 +38,7 @@ impl Block {
 			merkle_root: [0u8; 32],
 			miners_address: P2PKHAddress::null(),
 		};
-		let mut block = Block {hash: [0u8; 32], data, index, header: block_header };
+		let mut block = Block {hash: [0u8; 32], transactions, index, header: block_header };
 		block.update_hash();
 		block
 	}
@@ -52,7 +52,7 @@ impl Block {
 		};
 		Block {
 			hash: [0u8; 32],
-			data: vec![],
+			transactions: vec![],
 			index: 0,
 			header: block_header,
 		}
@@ -71,15 +71,8 @@ impl Block {
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
 		let mut hashes: Vec<[u8; 32]> = Vec::new();
-		for d in &self.data {
-			match d {
-				BlockData::TX(tx) => {
-					hashes.push(tx.calculate_hash());
-				}
-				BlockData::Data(d) => {
-					hashes.push(d.calculate_hash())
-				}
-			}
+		for tx in &self.transactions {
+			hashes.push(tx.calculate_hash());
 		}
 		calculate_merkle_root(hashes)
 	}
@@ -97,49 +90,24 @@ impl Block {
 			return false;
 		}
 		let mut account_spending: HashMap<[u8; 32], u64> = HashMap::new();
-		for d in &self.data {
-			match d {
-				BlockData::TX(tx1) => {
-					if let Some(&amount) = account_spending.get(&tx1.sender_address.address) {
-						account_spending.insert(tx1.sender_address.address, amount + tx1.amount + tx1.calculate_fee(&blockchain.configuration));
-					}
-				}
-				BlockData::Data(data) => {
-					if let Some(&amount) = account_spending.get(&data.creator.address) {
-						account_spending.insert(data.creator.address, amount + data.calculate_fee(&blockchain.configuration));
-
-					}
-				}
+		for tx in &self.transactions {
+			if let Some(&amount) = account_spending.get(&tx.sender_address.address) {
+				account_spending.insert(tx.sender_address.address, amount + tx.amount + tx.calculate_fee(&blockchain.configuration));
 			}
 		}
-		for d in &self.data {
-			match d {
-				BlockData::TX(tx) => {
-					if let Some(&amount) = account_spending.get(&tx.sender_address.address) {
+		for tx in &self.transactions {
+			if let Some(&amount) = account_spending.get(&tx.sender_address.address) {
 
-						// TODO: CHECK IF TIMESTAMP IS ACCEPTABLE
-						let does_sender_have_money = blockchain.get_balance_at(&tx.sender_address, self.index) >= amount;
-						let is_transaction_valid = tx.is_valid_heuristic(); // Checks if transaction is valid with an heuristic approach
-						let is_unique = 1 == self.data.iter()
-							.filter(|&d| if let BlockData::TX(tx) = d { tx.calculate_hash() == self.hash} else { false }).count();
-						if !(does_sender_have_money && is_transaction_valid && is_unique) {
-							return false;
-						}
-					} else {
-						return false;
-					}
+				// TODO: CHECK IF TIMESTAMP IS ACCEPTABLE
+				let does_sender_have_money = blockchain.get_balance_at(&tx.sender_address, self.index) >= amount;
+				let is_transaction_valid = tx.is_valid_heuristic(); // Checks if transaction is valid with an heuristic approach
+				let is_unique = 1 == self.transactions.iter()
+					.filter(|&d| tx.calculate_hash() == self.hash).count();
+				if !(does_sender_have_money && is_transaction_valid && is_unique) {
+					return false;
 				}
-				BlockData::Data(data) => {
-					if let Some(&amount) = account_spending.get(&data.creator.address) {
-						let balance = blockchain.get_balance(&data.creator);
-						let can_afford = balance >= amount;
-						if !(data.is_valid_heuristic(&blockchain.configuration) && can_afford) {
-							return false;
-						}
-					} else {
-						return false;
-					}
-				}
+			} else {
+				return false;
 			}
 		}
 

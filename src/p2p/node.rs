@@ -10,7 +10,7 @@ use tokio::task;
 
 use crate::core::block::Block;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::blockdata::{BlockData};
+use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
 use crate::p2p::chain_sync::{sync_in, sync_out};
 use crate::p2p::request_types::{RequestType};
@@ -71,11 +71,11 @@ impl Node {
 					}
 					connection.shutdown(Both)?;
 				}
-				RequestType::NewBlockData => {
+				RequestType::NewTransaction => {
 					let mut buffer = Vec::new();
 					connection.read_to_end(&mut buffer)?;
-					if let Ok(block_data) = bincode::deserialize::<BlockData>(&buffer) {
-						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_data_to_mempool(block_data);
+					if let Ok(tx) = bincode::deserialize::<Transaction>(&buffer) {
+						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_transaction_to_mempool(block_data);
 						connection.write_all(&bincode::serialize(&is_valid).expect("Unexpected error serializing boolean"))?;
 					}
 					connection.shutdown(Both)?;
@@ -181,7 +181,7 @@ impl Node {
 		}
 		Ok((accepted, self.peers.len() as u32))
 	}
-	pub fn broadcast_blockdata(&mut self, block_data: BlockData) -> Result<(u32, u32), io::Error> {
+	pub fn broadcast_transaction(&mut self, block_data: Transaction) -> Result<(u32, u32), io::Error> {
 		let mut accepted = 0;
 		for p in &self.peers {
 			if let Ok(mut stream) = TcpStream::connect(p.address) {

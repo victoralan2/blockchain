@@ -1,12 +1,13 @@
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::SystemTime;
 
 use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
-use crate::core::blockdata::BlockData;
 use crate::core::Hashable;
+use crate::core::utxo::transaction::Transaction;
+use crate::core::utxo::UTXO;
 
 #[derive(Clone)]
 pub struct BlockChainConfig {
@@ -14,8 +15,6 @@ pub struct BlockChainConfig {
 	pub(crate) reward: u64,
 	pub(crate) block_size: usize,
 	pub(crate) trust_threshold: u32,
-	pub(crate) max_data_size: usize,
-	pub(crate) data_fee_multiplier: f64,
 	pub(crate) transaction_fee_multiplier: f64,
 	pub(crate) max_transaction_fee: u64,
 }
@@ -23,18 +22,22 @@ pub struct BlockChainConfig {
 #[derive(Clone)]
 pub struct BlockChain {
 	chain: Vec<Block>,
+	utxo_set: HashMap<[u8; 32], UTXO>,
 	cache: HashMap<P2PKHAddress, u64>,
-	mempool: Vec<BlockData>,
+	mempool: Vec<Transaction>,
 	pub configuration: BlockChainConfig,
 }
 
 impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
-		BlockChain { chain, cache: Default::default(), mempool: vec![], configuration }
+		BlockChain { chain, utxo_set: HashMap::new(), cache: Default::default(), mempool: vec![], configuration }
 	}
-	pub fn new(chain: Vec<Block>, mempool: Vec<BlockData>, configuration: BlockChainConfig) -> Self {
-		BlockChain { chain, cache: Default::default(), mempool, configuration }
+	pub fn new(chain: Vec<Block>, mempool: Vec<Transaction>, configuration: BlockChainConfig) -> Self {
+		BlockChain { chain, utxo_set: HashMap::new(), cache: Default::default(), mempool, configuration }
+	}
+	pub fn get_utxo(&self, txid: &[u8; 32]) -> Option<&UTXO>{
+		self.utxo_set.get(txid)
 	}
 	pub fn replace(&mut self, new: BlockChain) {
 		self.cache = new.cache;
@@ -43,19 +46,19 @@ impl BlockChain {
 	pub fn truncate(&mut self, index: usize) {
 		self.chain.truncate(index);
 	}
-	/// Validates and adds the blockdata to the memory pool if valid.
+	/// Validates and adds the transaction to the memory pool if valid.
 	/// Returns whether the it was added or not
-	pub fn add_data_to_mempool(&mut self, data: BlockData) -> bool{
-		let is_valid = data.is_valid(self);
+	pub fn add_transaction_to_mempool(&mut self, tx: Transaction) -> bool{
+		let is_valid = tx.is_valid(self);
 		if is_valid {
-			self.mempool.push(data);
+			self.mempool.push(tx);
 		}
 		is_valid
 	}
 	pub fn mine_one_block(&mut self, miner: P2PKHAddress) -> Option<Block> {
 		if self.mempool.len() >= self.configuration.block_size {
 			let block_size = self.configuration.block_size;
-			let mut transaction_slices: Vec<BlockData> = self.mempool
+			let mut transaction_slices: Vec<Transaction> = self.mempool
 				.iter()
 				.take(block_size).cloned()
 				.collect::<Vec<_>>();
@@ -95,10 +98,7 @@ impl BlockChain {
 			if block.header.miners_address.address == addr {
 				balance += block.calculate_reward(&self.configuration);
 			}
-			for t in block.data
-				.iter()
-				.filter_map(|d| if let BlockData::TX(tx) = d { Some(tx) } else { None }) // Filters out all non transactions
-			{
+			for t in block.transactions {
 				if t.recipient_address.address == addr {
 					balance += t.amount;
 				}
@@ -146,7 +146,7 @@ impl BlockChain {
 		if let Some(last_block) = last_block {
 			if last_block.header.previous_hash == new_block.hash && new_block.is_valid(self) {
    					// Todo: some more checks and add block to blockchain
-   					for d in &new_block.data {
+   					for d in &new_block.transactions {
    						self.mempool.retain(|d2| d.eq(d2))
    					}
    					self.chain.push(new_block);

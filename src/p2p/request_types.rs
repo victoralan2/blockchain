@@ -1,7 +1,7 @@
 
 pub enum RequestType {
 	P2PDiscover,
-	NewBlockData,
+	NewTransaction,
 	NewBlock,
 	SyncRequest,
 }
@@ -15,8 +15,8 @@ impl TryFrom<Vec<u8>> for RequestType {
 				"P2PDiscover" => {
 					Ok(Self::P2PDiscover)
 				},
-				"NewBlockData" => {
-					Ok(Self::NewBlockData)
+				"NewTransaction" => {
+					Ok(Self::NewTransaction)
 				},
 				"NewBlock" => {
 					Ok(Self::NewBlock)
