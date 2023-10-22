@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use rand::thread_rng;
 use rand_core::RngCore;
+use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
@@ -11,7 +12,7 @@ use crate::core::blockdata::BlockData;
 use crate::core::Hashable;
 use crate::crypto::hash::merkle::calculate_merkle_root;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct BlockHeader {
 	pub previous_hash: [u8; 32],
 	pub nonce: u64,
@@ -20,7 +21,7 @@ pub struct BlockHeader {
 	pub miners_address: P2PKHAddress,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct Block {
 	pub index: usize,
 	pub header: BlockHeader,

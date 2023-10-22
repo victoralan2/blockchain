@@ -1,3 +1,4 @@
+use std::collections::{BinaryHeap, VecDeque};
 use std::io::Read;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -21,13 +22,13 @@ pub struct Test {
 }
 impl Test {
 	pub fn test(&mut self) {
-		let this = Arc::new(self);
-		let self_copy = this.clone();
-		task::spawn( async move {
-			for _ in 0..100000000 {
-				println!("{}", self_copy.value);
-			}
-		});
+		// let this = Arc::new(self);
+		// let self_copy = this.clone();
+		// task::spawn( async move {
+		// 	for _ in 0..100000000 {
+		// 		println!("{}", self_copy.value);
+		// 	}
+		// });
 		for i in 0..1000000000 {
 			self.value = i;
 		}
@@ -53,7 +54,7 @@ fn test_blockchain() {
 	let alice = P2PKHAddress::random();
 	let charlie = P2PKHAddress::random();
 
-	let mut blockchain = BlockChain::new(vec![Block::genesis()], Default::default(), config);
+	let mut blockchain = BlockChain::new(vec![Block::genesis()], vec![], config);
 
 	let mut t1 = Transaction::new_unsigned(0, 13, &alice.0, &bob.1, &bob.0, 10);
 	let mut t2 = Transaction::new_unsigned(0, 316, &bob.0, &charlie.1, &charlie.0, 15);

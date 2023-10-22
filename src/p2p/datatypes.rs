@@ -34,7 +34,8 @@ impl TryFrom<Vec<u8>> for DataType {
 					return Err(())
 				}
 			}
-		} else { 
+		} else {
 			Err(())
 		}
 	}
+}

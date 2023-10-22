@@ -24,16 +24,16 @@ pub struct BlockChainConfig {
 pub struct BlockChain {
 	chain: Vec<Block>,
 	cache: HashMap<P2PKHAddress, u64>,
-	mempool: BinaryHeap<BlockData>,
+	mempool: Vec<BlockData>,
 	pub configuration: BlockChainConfig,
 }
 
 impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
-		BlockChain { chain, cache: Default::default(), mempool: BinaryHeap::new(), configuration }
+		BlockChain { chain, cache: Default::default(), mempool: vec![], configuration }
 	}
-	pub fn new(chain: Vec<Block>, mempool: BinaryHeap<BlockData>, configuration: BlockChainConfig) -> Self {
+	pub fn new(chain: Vec<Block>, mempool: Vec<BlockData>, configuration: BlockChainConfig) -> Self {
 		BlockChain { chain, cache: Default::default(), mempool, configuration }
 	}
 	/// Validates and adds the blockdata to the memory pool if valid.
@@ -137,16 +137,14 @@ impl BlockChain {
 	pub fn add_block(&mut self, new_block: Block) -> bool {
 		let last_block = self.get_last_block().cloned();
 		if let Some(last_block) = last_block {
-			if last_block.header.previous_hash == new_block.hash {
-				if new_block.is_valid(self) {
-					// Todo: some more checks and add block to blockchain
-					for &d in &new_block.data {
-						self.mempool.retain(|d2| d.eq(d2))
-					}
-					self.chain.push(new_block);
-					return true;
-				}
-			}
+			if last_block.header.previous_hash == new_block.hash && new_block.is_valid(self) {
+   					// Todo: some more checks and add block to blockchain
+   					for d in &new_block.data {
+   						self.mempool.retain(|d2| d.eq(d2))
+   					}
+   					self.chain.push(new_block);
+   					return true;
+   				}
 		}
 		false
 	}

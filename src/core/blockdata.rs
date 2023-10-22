@@ -1,4 +1,4 @@
-use std::cmp::{min, Ordering};
+use std::cmp::{min};
 
 use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use crate::core::Hashable;
 use crate::crypto::hash::hash;
 use crate::crypto::public_key::Dilithium;
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum BlockData {
 	TX(Transaction),
 	Data(Data)
@@ -29,7 +29,7 @@ impl BlockData {
 	}
 }
 
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
 	pub nonce: u64,
 	pub time: u64,
@@ -106,7 +106,7 @@ impl Transaction {
 		min(fee, max_fee)
 	}
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Data {
 	pub time: u64,
 	pub hash: [u8; 32],

@@ -74,7 +74,7 @@ impl Node {
 					connection.shutdown(Both)?;
 				}
 				DataType::P2PDiscover => {
-					let response = self.peers.iter().map(|p|p.address).collect();
+					let response: Vec<SocketAddr> = self.peers.iter().map(|p|p.address).collect();
 					if let Ok(msg) = bincode::serialize(&response) {
 						connection.write_all(&msg)?;
 					} else {
@@ -111,18 +111,18 @@ impl Node {
 
 						},
 						b"GetChain" => {
-							let this = Arc::new(self);
-							let self_copy = this.clone();
-							task::spawn( async move {
-								connection.write_all(b"get_chain").unwrap();
-								let mut response = Vec::new();
-								connection.read_to_end(&mut response)?;
-								if response == b"get" {
-									connection.write_all(self_copy.test.as_bytes())
-								} else {
-									return
-								}
-							});
+							// let this = Arc::new(self);
+							// let self_copy = this.clone();
+							// task::spawn( async move {
+							// 	connection.write_all(b"get_chain").unwrap();
+							// 	let mut response = Vec::new();
+							// 	connection.read_to_end(&mut response);
+							// 	if response == b"get" {
+							// 		connection.write_all(self_copy.test.as_bytes());
+							// 	} else {
+							// 		return;
+							// 	}
+							// });
 						},
 						_ => {
 							return Err(io::Error::new(ErrorKind::InvalidInput, "Invalid request"))
