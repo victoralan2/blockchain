@@ -39,7 +39,6 @@ impl BlockChain {
 	pub fn replace(&mut self, new: BlockChain) {
 		self.cache = new.cache;
 		self.chain = new.chain;
-		self.mempool = new.mempool;
 	}
 	pub fn truncate(&mut self, index: usize) {
 		self.chain.truncate(index);
