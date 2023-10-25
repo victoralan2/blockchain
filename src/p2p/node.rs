@@ -130,9 +130,6 @@ impl Node {
 		}
 		Ok(())
 	}
-	pub fn initial_block_download(connection: &mut TcpStream, blockchain: Arc<Mutex<BlockChain>>) -> Result<(), io::Error> {
-
-	}
 	pub fn sync_peer(&mut self, peer: Peer) -> Result<(), io::Error>{
 		let mut connection = TcpStream::connect(peer.address)?;
 		Self::handshake_out(&mut connection)?;
