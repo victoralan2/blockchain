@@ -40,16 +40,11 @@ impl Node {
 	}
 	pub async fn start_server(&mut self, address: SocketAddr) -> Result<(), io::Error> {
 		let listener = TcpListener::bind(address)?;
-		// let clone = this.clone();
-		// tokio::spawn(async move {
-		// 	Self::event_loop(clone).await;
-		// });
-
 		while let Some(stream) = listener.incoming().next() {
 			let mut stream = stream?;
 			Self::handshake_in(&mut stream)?;
 			let mut request_type = Vec::new();
-			if let Ok(_) = stream.read_to_end(&mut request_type) {
+			if stream.read_to_end(&mut request_type).is_ok() {
 				self.handle_message(stream, request_type).unwrap();
 			} else {
 				stream.shutdown(Both).ok();
@@ -75,8 +70,12 @@ impl Node {
 					let mut buffer = Vec::new();
 					connection.read_to_end(&mut buffer)?;
 					if let Ok(tx) = bincode::deserialize::<Transaction>(&buffer) {
-						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_transaction_to_mempool(block_data);
+						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_transaction_to_mempool(&tx);
 						connection.write_all(&bincode::serialize(&is_valid).expect("Unexpected error serializing boolean"))?;
+						if is_valid {
+							// TODO: BROADCAST
+							self.broadcast_transaction(&tx)?;
+						}
 					}
 					connection.shutdown(Both)?;
 				}
@@ -84,8 +83,12 @@ impl Node {
 					let mut buffer = Vec::new();
 					connection.read_to_end(&mut buffer)?;
 					if let Ok(block) = bincode::deserialize::<Block>(&buffer) {
-						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_block(block);
+						let is_valid = self.blockchain.lock().expect("Unable to lock blockchain").add_block(&block);
 						connection.write_all(&bincode::serialize(&is_valid).expect("Unexpected error serializing boolean"))?;
+						if is_valid {
+							// TODO: BROADCAST
+							self.broadcast_block(&block)?;
+						}
 					}
 					connection.shutdown(Both)?;
 				}
@@ -107,21 +110,28 @@ impl Node {
 							connection.shutdown(Both)?;
 						}
 						b"GetChain" => {
-							let blockchain = self.blockchain.clone();
-							task::spawn(async move {
-								if let Err(err) = sync_in(connection, blockchain) {
-									println!("{}", err);
-								}
-							});
+							// TODO: snap-sync
+							// let blockchain = self.blockchain.clone();
+							// task::spawn(async move {
+							// 	if let Err(err) = sync_in(connection, blockchain) {
+							// 		println!("{}", err);
+							// 	}
+							// });
 						}
 						_ => {
 							return Err(io::Error::new(ErrorKind::InvalidInput, "Invalid request"));
 						}
 					}
 				}
+				InitialBlockDownload => {
+
+				}
 			}
 		}
 		Ok(())
+	}
+	pub fn initial_block_download(connection: &mut TcpStream, blockchain: Arc<Mutex<BlockChain>>) -> Result<(), io::Error> {
+
 	}
 	pub fn sync_peer(&mut self, peer: Peer) -> Result<(), io::Error>{
 		let mut connection = TcpStream::connect(peer.address)?;
@@ -132,15 +142,13 @@ impl Node {
 		connection.read_to_end(&mut last_block_data)?;
 		connection.shutdown(Both)?;
 
-
-
 		let mut blockchain = self.blockchain.lock().expect("Unable to lock");
 		if let Ok(last_block) = bincode::deserialize::<Block>(&last_block_data) {
 			let my_last_block = blockchain.get_last_block();
 			if let Some(my_last_block) = my_last_block {
 				if last_block.header.previous_hash == my_last_block.hash {
 					// Peer is one ahead
-					blockchain.add_block(last_block);
+					blockchain.add_block(&last_block);
 				} else if last_block.hash == my_last_block.hash {
 					// We are at the same level
 				} else if last_block.index > my_last_block.index {
@@ -148,9 +156,11 @@ impl Node {
 					let mut connection = TcpStream::connect(peer.address)?;
 					Self::handshake_out(&mut connection)?;
 					connection.write_all(b"SyncRequest")?;
-					connection.write_all(b"GetChain")?;
-					let new_chain = sync_out(connection, &blockchain)?;
-					blockchain.replace(&new_chain);
+					connection.write_all(b"InitialBlockDownload")?;
+					todo!()
+					// TODO: snap-sync
+					// let new_chain = sync_out(connection, &blockchain)?;
+					// blockchain.replace(new_chain);
 				}
 			}
 		}
@@ -159,7 +169,7 @@ impl Node {
 		Ok(())
 	}
 	/// Returns the acceptance count of that block and the total count of peers
-	pub fn broadcast_block(&mut self, block: Block) -> Result<(u32, u32), io::Error> {
+	pub fn broadcast_block(&mut self, block: &Block) -> Result<(u32, u32), io::Error> {
 		let mut accepted = 0;
 		for p in &self.peers {
 			if let Ok(mut stream) = TcpStream::connect(p.address) {
@@ -181,14 +191,14 @@ impl Node {
 		}
 		Ok((accepted, self.peers.len() as u32))
 	}
-	pub fn broadcast_transaction(&mut self, block_data: Transaction) -> Result<(u32, u32), io::Error> {
+	pub fn broadcast_transaction(&mut self, transaction: &Transaction) -> Result<(u32, u32), io::Error> {
 		let mut accepted = 0;
 		for p in &self.peers {
 			if let Ok(mut stream) = TcpStream::connect(p.address) {
 				Self::handshake_out(&mut stream).ok();
-				stream.write_all(b"NewBlock").ok();
-				if let Ok(block_bytes) = bincode::serialize(&block_data) {
-					stream.write_all(&block_bytes).ok();
+				stream.write_all(b"NewTransaction").ok();
+				if let Ok(tx_bytes) = bincode::serialize(&transaction) {
+					stream.write_all(&tx_bytes).ok();
 					let mut is_valid = Vec::new();
 					stream.read_to_end(&mut is_valid).ok();
 					if let Ok(is_valid) = bincode::deserialize::<bool>(&is_valid) {
@@ -205,7 +215,7 @@ impl Node {
 	}
 
 	pub fn discover_peers(&mut self) {
-		for p in self.peers {
+		for p in self.peers.clone() {
 			if let Ok(mut stream) = TcpStream::connect(p.address) {
 				Self::handshake_out(&mut stream).ok();
 				stream.write_all(b"P2PDiscover").ok();

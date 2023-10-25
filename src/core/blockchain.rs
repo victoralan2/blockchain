@@ -22,8 +22,7 @@ pub struct BlockChainConfig {
 #[derive(Clone)]
 pub struct BlockChain {
 	chain: Vec<Block>,
-	utxo_set: HashMap<[u8; 32], UTXO>,
-	cache: HashMap<P2PKHAddress, u64>,
+	pub utxo_set: HashMap<[u8; 32], Vec<UTXO>>, //TODO: Not this
 	mempool: Vec<Transaction>,
 	pub configuration: BlockChainConfig,
 }
@@ -31,16 +30,34 @@ pub struct BlockChain {
 impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
-		BlockChain { chain, utxo_set: HashMap::new(), cache: Default::default(), mempool: vec![], configuration }
+		BlockChain { chain, utxo_set: HashMap::new(), mempool: vec![], configuration }
 	}
 	pub fn new(chain: Vec<Block>, mempool: Vec<Transaction>, configuration: BlockChainConfig) -> Self {
-		BlockChain { chain, utxo_set: HashMap::new(), cache: Default::default(), mempool, configuration }
+		BlockChain { chain, utxo_set: HashMap::new(),mempool, configuration }
 	}
-	pub fn get_utxo(&self, txid: &[u8; 32]) -> Option<&UTXO>{
+	pub fn clone_empty(&self) -> Self {
+		Self {
+			chain: vec![],
+			utxo_set: Default::default(),
+			mempool: vec![],
+			configuration: self.configuration.clone(),
+		}
+	}
+	pub fn get_utxo_list(&self, txid: &[u8; 32]) -> Option<&Vec<UTXO>>{
 		self.utxo_set.get(txid)
 	}
+	pub fn get_utxo_list_by_address(&self, address: &P2PKHAddress) -> Vec<UTXO> {
+		let mut utxos = Vec::new();
+		for (_, utxo_list) in &self.utxo_set {
+			for utxo in utxo_list {
+				if utxo.recipient_address.eq(address) {
+					utxos.push(utxo.clone());
+				}
+			}
+		}
+		utxos
+	}
 	pub fn replace(&mut self, new: BlockChain) {
-		self.cache = new.cache;
 		self.chain = new.chain;
 	}
 	pub fn truncate(&mut self, index: usize) {
@@ -48,10 +65,10 @@ impl BlockChain {
 	}
 	/// Validates and adds the transaction to the memory pool if valid.
 	/// Returns whether the it was added or not
-	pub fn add_transaction_to_mempool(&mut self, tx: Transaction) -> bool{
+	pub fn add_transaction_to_mempool(&mut self, tx: &Transaction) -> bool{
 		let is_valid = tx.is_valid(self);
 		if is_valid {
-			self.mempool.push(tx);
+			self.mempool.push(tx.clone());
 		}
 		is_valid
 	}
@@ -90,30 +107,14 @@ impl BlockChain {
 		}
 		None
 	}
-	pub fn get_balance_at(&self, address: &P2PKHAddress, index: usize) -> u64 {
-		let addr = address.address;
-		let trusted_chain = &self.chain[..(self.chain.len() - self.configuration.trust_threshold as usize)];
-		let mut balance = 0u64;
-		for block in &trusted_chain[..index] {
-			if block.header.miners_address.address == addr {
-				balance += block.calculate_reward(&self.configuration);
-			}
-			for t in block.transactions {
-				if t.recipient_address.address == addr {
-					balance += t.amount;
-				}
-				if t.sender_address.address == addr {
-					if balance < t.amount {
-						panic!("BALANCE IS NEGATIVE")
-					}
-					balance -= t.amount;
-				}
+	pub fn get_balance(&self, address: &P2PKHAddress) -> u64 {
+		let mut balance = 0;
+		for utxo_list in self.utxo_set.values() {
+			for utxo in utxo_list.iter().filter(|x|x.recipient_address.eq(address)) {
+				balance += utxo.amount;
 			}
 		}
 		balance
-	}
-	pub fn get_balance(&self, address: &P2PKHAddress) -> u64 {
-		self.get_balance_at(address, self.chain.len())
 	}
 	pub fn get_block_at(&self, index: usize) -> Option<&Block> {
 		if index < self.chain.len(){
@@ -141,7 +142,7 @@ impl BlockChain {
 	}
 
 	/// Returns false if the blockchain is needed
-	pub fn add_block(&mut self, new_block: Block) -> bool {
+	pub fn add_block(&mut self, new_block: &Block) -> bool {
 		let last_block = self.get_last_block().cloned();
 		if let Some(last_block) = last_block {
 			if last_block.header.previous_hash == new_block.hash && new_block.is_valid(self) {
@@ -149,7 +150,7 @@ impl BlockChain {
    					for d in &new_block.transactions {
    						self.mempool.retain(|d2| d.eq(d2))
    					}
-   					self.chain.push(new_block);
+   					self.chain.push(new_block.clone());
    					return true;
    				}
 		}

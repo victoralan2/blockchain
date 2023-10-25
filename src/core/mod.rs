@@ -1,3 +1,4 @@
+use std::io::Read;
 use crate::core::block::Block;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::{hash, mine_hash};
@@ -31,7 +32,13 @@ impl Hashable for Transaction {
 	/// IMPORTANT
 	/// CHECK VALIDITY OF DATA BEFORE CALCULATING HASH. HASH DOES NOT CHECK FOR ERRORS IN COHERENCE
 	fn calculate_hash(&self) -> [u8; 32]{
-		let str = format!("{}.{}.{}.{}.{}", self.time, self.nonce, self.sender_address.to_string(), self.recipient_address.to_string(), self.amount);
+		let inputs = hex::encode(self.input_list.iter().map(|x| x.calculate_hash().to_vec()).reduce(|before, this | {
+			format!("{}.{}", hex::encode(this), hex::encode(before)).as_bytes().to_vec()
+		}).unwrap_or(vec![]));
+		let outputs = hex::encode(self.output_list.iter().map(|x| x.calculate_hash().to_vec()).reduce(|before, this | {
+			format!("{}.{}", hex::encode(this), hex::encode(before)).as_bytes().to_vec()
+		}).unwrap_or(vec![]));
+		let str = format!("{}.{}.{}", self.time, inputs, outputs);
 		hash(str.as_bytes())
 	}
 	fn update_hash(&mut self) {

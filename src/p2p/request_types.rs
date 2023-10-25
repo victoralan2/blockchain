@@ -4,6 +4,7 @@ pub enum RequestType {
 	NewTransaction,
 	NewBlock,
 	SyncRequest,
+	InitialBlockDownload,
 }
 
 impl TryFrom<Vec<u8>> for RequestType {
@@ -24,8 +25,11 @@ impl TryFrom<Vec<u8>> for RequestType {
 				"SyncRequest" => {
 					Ok(Self::SyncRequest)
 				}
+				"InitialBlockDownload" => {
+					Ok(Self::InitialBlockDownload)
+				}
 				_ => {
-					return Err(())
+					Err(())
 				}
 			}
 		} else {

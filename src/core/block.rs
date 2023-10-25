@@ -85,28 +85,19 @@ impl Block {
 		} else {
 			return false;
 		}
+		let is_hash_correct = self.calculate_hash() == self.hash;
+		let is_index_correct = self.index == blockchain.get_len();
 		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
-		if !is_merkle_tree_correct {
+		if !(is_merkle_tree_correct && is_hash_correct && is_index_correct){
 			return false;
 		}
-		let mut account_spending: HashMap<[u8; 32], u64> = HashMap::new();
 		for tx in &self.transactions {
-			if let Some(&amount) = account_spending.get(&tx.sender_address.address) {
-				account_spending.insert(tx.sender_address.address, amount + tx.amount + tx.calculate_fee(&blockchain.configuration));
-			}
-		}
-		for tx in &self.transactions {
-			if let Some(&amount) = account_spending.get(&tx.sender_address.address) {
 
-				// TODO: CHECK IF TIMESTAMP IS ACCEPTABLE
-				let does_sender_have_money = blockchain.get_balance_at(&tx.sender_address, self.index) >= amount;
-				let is_transaction_valid = tx.is_valid_heuristic(); // Checks if transaction is valid with an heuristic approach
-				let is_unique = 1 == self.transactions.iter()
-					.filter(|&d| tx.calculate_hash() == self.hash).count();
-				if !(does_sender_have_money && is_transaction_valid && is_unique) {
-					return false;
-				}
-			} else {
+			// TODO: CHECK IF TIMESTAMP IS ACCEPTABLE
+			let is_transaction_valid = tx.is_valid(blockchain);
+			let is_unique = 1 == self.transactions.iter()
+				.filter(|&tx2| tx.calculate_hash() == tx2.calculate_hash()).count();
+			if !(is_transaction_valid && is_unique) {
 				return false;
 			}
 		}
