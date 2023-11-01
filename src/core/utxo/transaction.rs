@@ -5,7 +5,7 @@ use crate::core::Hashable;
 use crate::core::utxo::{Input, Output, UTXO};
 use crate::crypto::public_key::Dilithium;
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
 	pub id: [u8; 32],
 	pub input_list: Vec<Input>,
@@ -46,7 +46,7 @@ impl Transaction {
 		}
 		Ok(())
 	}
-	pub fn verify_input_signatures(&self) -> bool { // TODO
+	pub fn verify_input_signatures(&self) -> bool {
 		for input in &self.input_list {
 			if !input.verify_signature(self) {
 				return false;

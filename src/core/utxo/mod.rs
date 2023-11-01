@@ -8,7 +8,7 @@ use crate::crypto::public_key::Dilithium;
 use crate::crypto::hash::hash;
 pub mod transaction;
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Input {
 	pub prev_txid: [u8; 32],
 	pub output_index: usize,
@@ -16,12 +16,12 @@ pub struct Input {
 	pub public_key: Vec<u8>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Output {
 	pub amount: u64,
 	pub address: P2PKHAddress,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct UTXO {
 	pub txid: [u8; 32],
 	pub output_index: usize,

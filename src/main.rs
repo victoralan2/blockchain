@@ -1,64 +1,21 @@
-use std::collections::{BinaryHeap, VecDeque};
-use std::hint::black_box;
-use std::io::Read;
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use async_std::task;
-use crate::crypto::hash::hash;
-use pqcrypto_traits::sign::SecretKey;
-
 use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::utxo::UTXO;
 
 mod crypto;
 mod core;
-mod p2p;
+mod network;
 
 fn main() {
-	let config = BlockChainConfig {
-		difficulty: 10,
-		reward: 10,
-		block_size: 1,
-		trust_threshold: 0,
-		transaction_fee_multiplier: 0.5,
-		max_transaction_fee: 10,
-	};
-	let main = P2PKHAddress::random();
-	let other = P2PKHAddress::random();
-	let mut blockchain = BlockChain::new(vec![Block::genesis()], vec![], config);
-	let txid = hash(b"test");
-	let main_utxo = UTXO {
-		txid,
-		output_index: 0,
-		amount: 126,
-		recipient_address: main.0.clone(),
-	};
-	blockchain.utxo_set.insert(txid, vec![main_utxo]);
-	let txid2 = hash(b"test2");
-
-	let mut utxos = Vec::new();
-	for _ in 0..10000000 {
-		let other_utxo = UTXO {
-			txid,
-			output_index: 0,
-			amount: 3613,
-			recipient_address: other.0.clone(),
-		};
-		utxos.push(other_utxo);
-	}
-	blockchain.utxo_set.insert(txid2, utxos);
-	println!("START");
 	let start = Instant::now();
-	let balance = blockchain.get_balance(&main.0);
-	let time = start.elapsed();
-	println!("{:?}", time);
-	println!("Balance: {}", balance);
+	for _ in 0..1000u32 {
+		crypto::hash::mine_hash(b"test");
+	}
+	println!("Took {:?}", start.elapsed());
 }
 fn test_blockchain() {
+
 	let config = BlockChainConfig {
 		difficulty: 10,
 		reward: 10,

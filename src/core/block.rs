@@ -57,14 +57,6 @@ impl Block {
 			header: block_header,
 		}
 	}
-	pub fn mine(&mut self, difficulty: u8, keep_mining: Arc<AtomicBool>) -> bool {
-		self.header.nonce = thread_rng().next_u64();
-		while get_leading_zeros(&self.hash) < difficulty as u32 && keep_mining.load(Ordering::Relaxed) {
-			self.header.nonce += 1;
-			self.update_hash();
-		}
-		keep_mining.load(Ordering::Relaxed) // Return true if the block was mined, false if the opperation was cancelled
-	}
 	pub fn calculate_reward(&self, config: &BlockChainConfig) -> u64 {
 		todo!()
 		// TODO
@@ -106,12 +98,3 @@ impl Block {
 	}
 }
 
-pub fn get_leading_zeros(vec: &[u8]) -> u32 {
-	vec.iter().try_fold(0, |acc, n| {
-		if n == &0 {
-			Ok(acc + 8)
-		} else {
-			Err(acc + n.leading_zeros())
-		}
-	}).unwrap_or_else(|e| e)
-}
