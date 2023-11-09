@@ -1,5 +1,6 @@
 use std::io::Read;
 use crate::core::block::Block;
+use crate::core::utxo::coinbase::CoinbaseTransaction;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::{hash, mine_hash};
 
@@ -7,7 +8,6 @@ pub mod blockchain;
 pub mod block;
 pub mod address;
 pub mod utxo;
-
 pub trait Hashable {
 	fn calculate_hash(&self) -> [u8; 32];
 	fn update_hash(&mut self);
@@ -18,7 +18,7 @@ impl Hashable for Block {
 	fn calculate_hash(&self) -> [u8; 32]{
 		let header = &self.header;
 		let merkle_tree = self.calculate_merkle_tree();
-		let str = format!("{}.{}.{}.{}.{}", hex::encode(header.previous_hash), header.nonce, hex::encode(merkle_tree), header.miners_address.to_string(), header.time);
+		let str = format!("{}.{}.{}.{}.{}", hex::encode(header.previous_hash), header.nonce, hex::encode(merkle_tree), hex::encode(header.coinbase_transaction.calculate_hash()), header.time);
 		println!("{}", str);
 		mine_hash(str.as_bytes()).as_slice().try_into().expect("Unable to convert hash to byte array")
 	}
@@ -44,5 +44,18 @@ impl Hashable for Transaction {
 	fn update_hash(&mut self) {
 		self.id = self.calculate_hash();
 	}
+}
+impl Hashable for CoinbaseTransaction {
+	fn calculate_hash(&self) -> [u8; 32] {
+		let output = format!("{}.{}", self.output.amount, hex::encode(self.output.address.address));
+		let str = format!("{}.{}", self.time, output);
+		hash(str.as_bytes())
+	}
 
+	fn update_hash(&mut self) {
+		self.id = self.calculate_hash();
+	}
+}
+pub fn is_smaller(hash: &[u8; 32], target: &[u8; 32]) -> bool {
+	matches!(hash.cmp(target), std::cmp::Ordering::Less)
 }

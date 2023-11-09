@@ -6,7 +6,6 @@ pub fn hash(data: &[u8]) -> [u8; 32] {
 	sha256(data).as_slice().try_into().expect("Unable to convert hash to byte array")
 }
 pub fn mine_hash(data: &[u8]) -> [u8; 32] {
-	// TODO:  Change function
 	scrypt(data)
 }
 pub fn scrypt(data: &[u8]) -> [u8; 32] {

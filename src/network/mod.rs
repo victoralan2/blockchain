@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::net::{SocketAddr};
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use async_trait::async_trait;
@@ -12,15 +11,14 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-use tokio_io_timeout::{TimeoutStream, TimeoutWriter};
 use crate::network::capsule::{BlockCapsule, Capsule, TransactionCapsule};
 use crate::network::node::Node;
 use crate::network::request_types::RequestType;
 
 pub mod node;
 pub mod request_types;
-pub mod chain_sync;
-mod capsule;
+pub mod capsule;
+pub mod errors;
 
 #[async_trait]
 pub trait Listener {
@@ -70,7 +68,10 @@ impl Listener for Node {
 					Self::handle_peer(connection, state).await?;
 				},
 				Self::AUTO_SUBSCRIBE_MODE => {
-					// TODO: He wants to auto-subscribe
+					// TODO: Maybe check for some things
+					let state_clone = state.clone();
+					let config = &state.lock().await.config;
+					Self::subscribe(state_clone, connection.peer_addr()?, config.listing_port).await?;
 				},
 				_ => {
 					connection.shutdown().await?;
@@ -116,10 +117,9 @@ impl Listener for Node {
 					let mut block_capsule: BlockCapsule = bincode::deserialize(&buf)?;
 					if let Some(block) = block_capsule.consume() {
 						if block_capsule.is_alive() {
-							// Todo: Check if block valid and add to chain
 							let node = state.lock().await;
 							let mut bc = node.blockchain.lock().await;
-							if bc.add_block(&block) {
+							if bc.add_block(&block) && block_capsule.is_alive() {
 								let state = state.clone();
 								tokio::spawn(async move{
 									Self::broadcast(&block_capsule, RequestType::NewBlock.into(), state).await;
@@ -146,7 +146,7 @@ impl Listener for Node {
 						let data = serialize(next_block).unwrap();
 						drop(blockchain);
 						connection.write_all(&data).await.ok();
-						if connection.read(&mut []).await.is_err() {
+						if connection.read(&mut []).await.unwrap_or(0) == 0 {
 							break;
 						}
 					}
