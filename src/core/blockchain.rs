@@ -35,8 +35,6 @@ impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
 		BlockChain { chain, utxo_set: UTXOSet::genesis(configuration), mempool: Default::default(), configuration }
-
-
 	}
 	pub fn new(chain: Vec<Block>, mempool: HashSet<Transaction>, configuration: BlockChainConfig) -> Self {
 		BlockChain { chain, utxo_set: HashMap::new(),mempool, configuration }
