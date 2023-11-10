@@ -9,7 +9,7 @@ edition = "2021"
 crypto-hash = "*"
 hex = "*"
 rand = "*"
-rand_core="0.6.3"
+rand_core = "0.6.3"
 serde = {version = "*", features = ["derive"]}
 pqcrypto-dilithium = "*"
 pqcrypto-traits = "*"

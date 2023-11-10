@@ -17,8 +17,8 @@ use crate::core::blockchain::BlockChain;
 use crate::core::utxo::transaction::Transaction;
 use crate::network::{Broadcast, Listener, Subscribe};
 use crate::network::capsule::{BlockCapsule, TransactionCapsule};
-use crate::network::errors::{BlockchainError};
 use crate::network::request_types::RequestType;
+
 pub struct NodeConfig {
 	pub(crate) default_transaction_ttl: u32,
 	pub(crate) default_block_ttl: u32,

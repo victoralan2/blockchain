@@ -1,24 +1,15 @@
-use std::cmp::Ordering;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::time::Instant;
-use num_bigint::BigUint;
 use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
-use rand::{Rng, thread_rng};
+use rand::{Rng};
 use crate::application::gen_difficulty;
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::utxo::Input;
-use crate::core::utxo::transaction::Transaction;
-use crate::crypto::hash::sha256;
 use crate::network::node::{Node, NodeConfig};
 
 pub mod crypto;
 pub mod core;
 pub mod network;
 pub mod application;
-
 
 pub static mut address: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
 #[tokio::main]
