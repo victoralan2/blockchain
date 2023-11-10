@@ -1,119 +1,138 @@
-use std::collections::{BinaryHeap, HashMap, VecDeque};
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool};
+use std::sync::{Arc};
 use std::time::SystemTime;
+use rand::thread_rng;
+use rand_core::RngCore;
+use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
-use crate::core::block::Block;
-use crate::core::blockdata::BlockData;
-use crate::core::Hashable;
+use crate::core::block::{Block};
+use crate::core::{Hashable, is_smaller};
+use crate::core::utxo::transaction::Transaction;
+use crate::core::utxo::{UTXO, UTXOSet};
+use crate::core::utxo::coinbase::CoinbaseTransaction;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Copy)]
 pub struct BlockChainConfig {
-	pub(crate) difficulty: u8,
+	pub(crate) target_value: [u8; 32], // Todo: Make this value automatically update like in btc
 	pub(crate) reward: u64,
 	pub(crate) block_size: usize,
 	pub(crate) trust_threshold: u32,
-	pub(crate) max_data_size: usize,
-	pub(crate) data_fee_multiplier: f64,
 	pub(crate) transaction_fee_multiplier: f64,
 	pub(crate) max_transaction_fee: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BlockChain {
 	chain: Vec<Block>,
-	cache: HashMap<P2PKHAddress, u64>,
-	mempool: Vec<BlockData>,
+	pub utxo_set: HashMap<[u8; 32], Vec<UTXO>>,
+	mempool: HashSet<Transaction>,
 	pub configuration: BlockChainConfig,
 }
 
 impl BlockChain {
 	pub fn new_empty(configuration: BlockChainConfig) -> Self {
 		let chain = vec![Block::genesis()];
-		BlockChain { chain, cache: Default::default(), mempool: vec![], configuration }
+		BlockChain { chain, utxo_set: UTXOSet::genesis(configuration), mempool: Default::default(), configuration }
 	}
-	pub fn new(chain: Vec<Block>, mempool: Vec<BlockData>, configuration: BlockChainConfig) -> Self {
-		BlockChain { chain, cache: Default::default(), mempool, configuration }
+	pub fn new(chain: Vec<Block>, mempool: HashSet<Transaction>, configuration: BlockChainConfig) -> Self {
+		BlockChain { chain, utxo_set: HashMap::new(),mempool, configuration }
+	}
+	pub fn clear(&mut self) {
+		self.chain = vec![Block::genesis()];
+		self.utxo_set.clear();
+	}
+	pub fn get_utxo_list(&self, txid: &[u8; 32]) -> Option<&Vec<UTXO>>{
+		self.utxo_set.get(txid)
+	}
+	pub fn get_utxo_list_by_address(&self, address: &P2PKHAddress) -> Vec<UTXO> {
+		let mut utxos = Vec::new();
+		for (_, utxo_list) in &self.utxo_set {
+			for utxo in utxo_list {
+				if utxo.recipient_address.eq(address) {
+					utxos.push(utxo.clone());
+				}
+			}
+		}
+		utxos
 	}
 	pub fn replace(&mut self, new: BlockChain) {
-		self.cache = new.cache;
 		self.chain = new.chain;
 	}
 	pub fn truncate(&mut self, index: usize) {
 		self.chain.truncate(index);
 	}
-	/// Validates and adds the blockdata to the memory pool if valid.
+	/// Validates and adds the transaction to the memory pool if valid.
 	/// Returns whether the it was added or not
-	pub fn add_data_to_mempool(&mut self, data: BlockData) -> bool{
-		let is_valid = data.is_valid(self);
+	pub fn add_transaction_to_mempool(&mut self, tx: &Transaction) -> bool{
+		let is_valid = tx.is_valid(self);
 		if is_valid {
-			self.mempool.push(data);
+			self.mempool.insert(tx.clone()) && is_valid
+		} else {
+			false
 		}
-		is_valid
+
 	}
-	pub fn mine_one_block(&mut self, miner: P2PKHAddress) -> Option<Block> {
+	pub fn mine_one_block(&mut self, miner: P2PKHAddress, keep_mining: Arc<AtomicBool>) -> Option<Block> {
 		if self.mempool.len() >= self.configuration.block_size {
 			let block_size = self.configuration.block_size;
-			let mut transaction_slices: Vec<BlockData> = self.mempool
+			let transaction_slices: Vec<Transaction> = self.mempool
 				.iter()
-				.take(block_size).cloned()
+				.take(block_size)
+				.cloned()
 				.collect::<Vec<_>>();
 
-			let mut new_block = Block::new(
-				transaction_slices.clone(),
-				SystemTime::now()
-					.duration_since(SystemTime::UNIX_EPOCH)
-					.unwrap()
-					.as_secs(),
-				self.chain.len(),
-			);
 
-			new_block.header.miners_address = miner;
+
 
 			if let Some(mut last_block) = self.get_last_block().cloned() {
+				let utxo_transaction = CoinbaseTransaction::genesis();
 
+				let mut new_block = Block::new(
+					transaction_slices.clone(),
+					SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64,
+					self.chain.len(),
+					last_block.header.previous_hash,
+					utxo_transaction);
+				new_block.header.coinbase_transaction = CoinbaseTransaction::create(miner, new_block.calculate_reward(self.configuration));
 				last_block.update_hash();
-				let hash_val = last_block.hash;
-				new_block.header.previous_hash = hash_val;
 
-				let mut keep_mining = Arc::new(AtomicBool::new(true)); // TODO: MAKE MINING CANCELLABLE
+				// TODO: MAKE MINING CANCELLABLE
+				new_block.header.nonce = thread_rng().next_u64();
+				new_block.update_hash();
+				let mut i = 0;
+				const CHECK_RATE: u32 = 1000;
+				loop {
+					new_block.header.nonce += 1;
+					if is_smaller(&new_block.calculate_hash(), &self.configuration.target_value) {
+						new_block.update_hash();
+					} else {
+						println!("Block mined, nonce to solve PoW: {}", new_block.header.nonce);
+						return Some(new_block);
+					}
 
-				if new_block.mine(self.configuration.difficulty, keep_mining.clone()) && new_block.is_valid(self) {
-					println!("Block mined, nonce to solve PoW: {}", new_block.header.nonce);
-					return Some(new_block);
+					if i > CHECK_RATE {
+						i=0;
+						if keep_mining.load(std::sync::atomic::Ordering::Relaxed) || !new_block.is_valid(&self) {
+							break
+						}
+					}
+					i+=1;
 				}
+
 			}
 		}
 		None
 	}
-	pub fn get_balance_at(&self, address: &P2PKHAddress, index: usize) -> u64 {
-		let addr = address.address;
-		let trusted_chain = &self.chain[..(self.chain.len() - self.configuration.trust_threshold as usize)];
-		let mut balance = 0u64;
-		for block in &trusted_chain[..index] {
-			if block.header.miners_address.address == addr {
-				balance += block.calculate_reward(&self.configuration);
-			}
-			for t in block.data
-				.iter()
-				.filter_map(|d| if let BlockData::TX(tx) = d { Some(tx) } else { None }) // Filters out all non transactions
-			{
-				if t.recipient_address.address == addr {
-					balance += t.amount;
-				}
-				if t.sender_address.address == addr {
-					if balance < t.amount {
-						panic!("BALANCE IS NEGATIVE")
-					}
-					balance -= t.amount;
-				}
+	pub fn get_balance(&self, address: &P2PKHAddress) -> u64 {
+		let mut balance = 0;
+		for utxo_list in self.utxo_set.values() {
+			for utxo in utxo_list.iter().filter(|x|x.recipient_address.eq(address)) {
+				balance += utxo.amount;
 			}
 		}
 		balance
-	}
-	pub fn get_balance(&self, address: &P2PKHAddress) -> u64 {
-		self.get_balance_at(address, self.chain.len())
 	}
 	pub fn get_block_at(&self, index: usize) -> Option<&Block> {
 		if index < self.chain.len(){
@@ -140,19 +159,48 @@ impl BlockChain {
 		self.chain.last()
 	}
 
-	/// Returns false if the blockchain is needed
-	pub fn add_block(&mut self, new_block: Block) -> bool {
-		let last_block = self.get_last_block().cloned();
-		if let Some(last_block) = last_block {
-			if last_block.header.previous_hash == new_block.hash && new_block.is_valid(self) {
-   					// Todo: some more checks and add block to blockchain
-   					for d in &new_block.data {
-   						self.mempool.retain(|d2| d.eq(d2))
-   					}
-   					self.chain.push(new_block);
-   					return true;
-   				}
+	pub fn add_block(&mut self, new_block: &Block) -> bool {
+		if new_block.is_valid(self) {
+			// Todo: some more checks and add block to blockchain
+			// Todo: build up the utxo set. PROBABLY DONE
+			for tx in &new_block.transactions {
+				self.mempool.retain(|t2| tx.eq(t2));
+				for input in &tx.input_list {
+					if let Some(utxo_list) = self.utxo_set.get_mut(&input.prev_txid) {
+						utxo_list.remove(input.output_index);
+					}
+				}
+				let mut utxo_list = Vec::new();
+				for (i, output) in tx.output_list.iter().enumerate() {
+					let utxo = UTXO{
+						txid: tx.id,
+						output_index: i,
+						amount: output.amount,
+						recipient_address: output.address,
+						time: tx.time,
+					};
+					utxo_list.push(utxo);
+				}
+				self.utxo_set.insert(tx.id, utxo_list);
+			}
+			let coinbase_utxo = UTXO {
+				txid: new_block.header.coinbase_transaction.id,
+				output_index: 0,
+				amount: new_block.header.coinbase_transaction.output.amount,
+				recipient_address: new_block.header.coinbase_transaction.output.address,
+				time: new_block.header.coinbase_transaction.time,
+			};
+			if let Some(coinbase_list) = self.utxo_set.get_mut(&[0u8; 32]) {
+				coinbase_list.push(coinbase_utxo);
+			} else {
+				self.utxo_set.insert([0u8; 32], vec![coinbase_utxo]);
+			}
+			self.chain.push(new_block.clone());
+			return true;
 		}
 		false
+	}
+	pub fn is_block_next(&self, block: &Block) -> bool {
+		block.index == self.get_len() && block.header.previous_hash == self.get_last_block().unwrap().hash
 	}
 }

@@ -9,7 +9,7 @@ use crate::crypto::public_key::Dilithium;
 
 const SIGNATURE_BYTES: [u8; 2] = [0b0001000, 0b0001000];
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, Eq, Serialize, Deserialize, PartialEq)]
 pub struct P2PKHAddress {
 	pub address: [u8; 32]
 }

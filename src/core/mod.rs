@@ -1,12 +1,13 @@
+use std::io::Read;
 use crate::core::block::Block;
-use crate::core::blockdata::{Data, Transaction};
+use crate::core::utxo::coinbase::CoinbaseTransaction;
+use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::{hash, mine_hash};
 
 pub mod blockchain;
 pub mod block;
 pub mod address;
-pub mod blockdata;
-
+pub mod utxo;
 pub trait Hashable {
 	fn calculate_hash(&self) -> [u8; 32];
 	fn update_hash(&mut self);
@@ -17,7 +18,7 @@ impl Hashable for Block {
 	fn calculate_hash(&self) -> [u8; 32]{
 		let header = &self.header;
 		let merkle_tree = self.calculate_merkle_tree();
-		let str = format!("{}.{}.{}.{}.{}", hex::encode(header.previous_hash), header.nonce, hex::encode(merkle_tree), header.miners_address.to_string(), header.time);
+		let str = format!("{}.{}.{}.{}.{}", hex::encode(header.previous_hash), header.nonce, hex::encode(merkle_tree), hex::encode(header.coinbase_transaction.calculate_hash()), header.time);
 		println!("{}", str);
 		mine_hash(str.as_bytes()).as_slice().try_into().expect("Unable to convert hash to byte array")
 	}
@@ -31,24 +32,30 @@ impl Hashable for Transaction {
 	/// IMPORTANT
 	/// CHECK VALIDITY OF DATA BEFORE CALCULATING HASH. HASH DOES NOT CHECK FOR ERRORS IN COHERENCE
 	fn calculate_hash(&self) -> [u8; 32]{
-		let str = format!("{}.{}.{}.{}.{}", self.time, self.nonce, self.sender_address.to_string(), self.recipient_address.to_string(), self.amount);
+		let inputs = hex::encode(self.input_list.iter().map(|x| x.calculate_hash().to_vec()).reduce(|before, this | {
+			format!("{}.{}", hex::encode(this), hex::encode(before)).as_bytes().to_vec()
+		}).unwrap_or(vec![]));
+		let outputs = hex::encode(self.output_list.iter().map(|x| x.calculate_hash().to_vec()).reduce(|before, this | {
+			format!("{}.{}", hex::encode(this), hex::encode(before)).as_bytes().to_vec()
+		}).unwrap_or(vec![]));
+		let str = format!("{}.{}.{}", self.time, inputs, outputs);
 		hash(str.as_bytes())
 	}
 	fn update_hash(&mut self) {
-		self.hash = self.calculate_hash();
+		self.id = self.calculate_hash();
 	}
-
 }
-impl Hashable for Data {
-	/// IMPORTANT
-	/// CHECK VALIDITY OF DATA BEFORE CALCULATING HASH. HASH DOES NOT CHECK FOR ERRORS IN COHERENCE
+impl Hashable for CoinbaseTransaction {
 	fn calculate_hash(&self) -> [u8; 32] {
-		let mut str = String::new();
-		str = format!("{}.{}.{}", self.time, hex::encode(hash(&self.data)), self.creator.to_string());
+		let output = format!("{}.{}", self.output.amount, hex::encode(self.output.address.address));
+		let str = format!("{}.{}", self.time, output);
 		hash(str.as_bytes())
 	}
 
 	fn update_hash(&mut self) {
-		self.hash = self.calculate_hash()
+		self.id = self.calculate_hash();
 	}
+}
+pub fn is_smaller(hash: &[u8; 32], target: &[u8; 32]) -> bool {
+	matches!(hash.cmp(target), std::cmp::Ordering::Less)
 }

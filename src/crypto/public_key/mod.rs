@@ -1,5 +1,3 @@
-extern crate num_bigint;
-extern crate num_traits;
 extern crate rand;
 
 use pqcrypto_dilithium::dilithium5;
