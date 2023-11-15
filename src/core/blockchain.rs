@@ -83,9 +83,6 @@ impl BlockChain {
 				.cloned()
 				.collect::<Vec<_>>();
 
-
-
-
 			if let Some(mut last_block) = self.get_last_block().cloned() {
 				let utxo_transaction = CoinbaseTransaction::genesis();
 
@@ -101,6 +98,7 @@ impl BlockChain {
 				// TODO: MAKE MINING CANCELLABLE
 				new_block.header.nonce = thread_rng().next_u64();
 				new_block.update_hash();
+				let mut start_index = self.get_len();
 				let mut i = 0;
 				const CHECK_RATE: u32 = 1000;
 				loop {
@@ -114,7 +112,7 @@ impl BlockChain {
 
 					if i > CHECK_RATE {
 						i=0;
-						if keep_mining.load(std::sync::atomic::Ordering::Relaxed) || !new_block.is_valid(&self) {
+						if keep_mining.load(std::sync::atomic::Ordering::Relaxed) || self.get_len() != start_index || !new_block.is_valid(&self, self.get_len()) {
 							break
 						}
 					}
@@ -160,7 +158,7 @@ impl BlockChain {
 	}
 
 	pub fn add_block(&mut self, new_block: &Block) -> bool {
-		if new_block.is_valid(self) {
+		if new_block.is_valid(self, self.get_len()) {
 			// Todo: some more checks and add block to blockchain
 			// Todo: build up the utxo set. PROBABLY DONE
 			for tx in &new_block.transactions {
@@ -199,8 +197,5 @@ impl BlockChain {
 			return true;
 		}
 		false
-	}
-	pub fn is_block_next(&self, block: &Block) -> bool {
-		block.index == self.get_len() && block.header.previous_hash == self.get_last_block().unwrap().hash
 	}
 }

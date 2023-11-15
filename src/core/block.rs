@@ -25,14 +25,13 @@ pub struct BlockHeader {
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct Block {
-	pub index: usize,
 	pub header: BlockHeader,
 	pub hash: [u8; 32],
 	pub transactions: Vec<Transaction>,
 }
 
 impl Block {
-	pub fn new(transactions: Vec<Transaction>, time: u64, index: usize, previous_hash: [u8; 32], coinbase_transaction: CoinbaseTransaction) -> Self {
+	pub fn new(transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], coinbase_transaction: CoinbaseTransaction) -> Self {
 		let header = BlockHeader{
 			previous_hash,
 			time,
@@ -40,7 +39,7 @@ impl Block {
 			merkle_root: [0u8; 32],
 			coinbase_transaction,
 		};
-		let mut block = Block {hash: [0u8; 32], transactions, index, header };
+		let mut block = Block {hash: [0u8; 32], transactions, header };
 		block.update_hash();
 		block
 	}
@@ -57,7 +56,6 @@ impl Block {
 		let mut block = Block {
 			hash: [0u8; 32],
 			transactions: vec![],
-			index: 0,
 			header,
 		};
 		block.update_hash();
@@ -74,8 +72,8 @@ impl Block {
 		}
 		calculate_merkle_root(hashes)
 	}
-	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
-		if let Some(previous) = blockchain.get_block_at(self.index - 1) {
+	pub fn is_valid(&self, blockchain: &BlockChain, index: usize) -> bool {
+		if let Some(previous) = blockchain.get_block_at(index - 1) {
 			let is_previous_hash_correct = self.header.previous_hash == previous.hash;
 			if !is_previous_hash_correct {
 				return false;
@@ -84,7 +82,7 @@ impl Block {
 			return false;
 		}
 		let is_hash_correct = self.calculate_hash() == self.hash;
-		let is_index_correct = self.index == blockchain.get_len();
+		// let is_index_correct = self.index == blockchain.get_len();
 		let is_pow_valid = is_smaller(&self.hash, &blockchain.configuration.target_value); // TODO: Check that value is valid for its time and not for the current target value
 		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
 
@@ -99,7 +97,7 @@ impl Block {
 				}
 			}
 		}
-		if !(is_merkle_tree_correct && is_hash_correct && is_index_correct && is_pow_valid && are_tx_unique) {
+		if !(is_merkle_tree_correct && is_hash_correct && is_pow_valid && are_tx_unique) {
 			return false;
 		}
 
