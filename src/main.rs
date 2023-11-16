@@ -4,6 +4,7 @@ use rand::{Rng};
 use crate::application::gen_difficulty;
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
+use crate::network::models::HttpScheme;
 use crate::network::node::{Node, NodeConfig};
 
 pub mod crypto;
@@ -11,37 +12,31 @@ pub mod core;
 pub mod network;
 pub mod application;
 
-pub static mut address: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
+pub static mut ADDRESS: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
 #[tokio::main]
 async fn main() {
 	unsafe {
-		let hash: [u8; 32] = [
-			0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF,
-		];
-
-		let target: [u8; 32] = [
-			0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEE, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF,
-		];
-		const DIFFICULTY: u128 = 50000;
+		const DIFFICULTY: u128 = 5000;
 		let target_value = gen_difficulty(DIFFICULTY);
 
-		let blockchain = BlockChain::new_empty(BlockChainConfig {
+		let node_config = NodeConfig {
+			listing_port: 8000,
+			http_scheme: HttpScheme::HTTP,
+		};
+
+		let blockchain_config = BlockChainConfig {
 			target_value,
 			reward: 10,
 			block_size: 1024,
 			trust_threshold: 6,
 			transaction_fee_multiplier: 1.0,
 			max_transaction_fee: 10,
-		});
-		let node = Node::new(blockchain, NodeConfig {
-			default_transaction_ttl: 10,
-			default_block_ttl: 10,
-			listing_port: 25565,
-		});
-		let seed_peers = vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 25565)];
-		let node = node.start_node(seed_peers).await.expect("Unable to start node");
+		};
+
+		let node = Node::new(0, node_config, blockchain_config);
+		let handle = node.start_node();
+
+
 	}
 }
 

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use rand::thread_rng;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
-use crate::address;
+use crate::ADDRESS;
 
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
@@ -45,7 +45,7 @@ impl Block {
 	}
 	pub fn genesis() -> Self {
 		let addr = P2PKHAddress::random();
-		unsafe { address = Some(addr); }
+		unsafe { ADDRESS = Some(addr); }
 		let header = BlockHeader{
 			previous_hash:  [0u8; 32],
 			time: 0u64,

@@ -89,7 +89,6 @@ impl BlockChain {
 				let mut new_block = Block::new(
 					transaction_slices.clone(),
 					SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64,
-					self.chain.len(),
 					last_block.header.previous_hash,
 					utxo_transaction);
 				new_block.header.coinbase_transaction = CoinbaseTransaction::create(miner, new_block.calculate_reward(self.configuration));
