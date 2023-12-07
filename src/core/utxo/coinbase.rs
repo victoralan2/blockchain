@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+
 use crate::core::address::P2PKHAddress;
+use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::Output;
 
@@ -25,7 +27,13 @@ impl CoinbaseTransaction {
 		this
 	}
 	pub fn genesis() -> Self {
-		// TODO: Make this give me money
+		Self {
+			id: [0u8; 32],
+			output: Output { amount: 10, address: P2PKHAddress::null() },
+			time: 0,
+		}
+	}
+	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
 		todo!()
 	}
 }

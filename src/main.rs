@@ -1,80 +1,65 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
+use std::time::Duration;
+
 use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
-use rand::{Rng};
+use reqwest::{Client, Url};
+
 use crate::application::gen_difficulty;
 use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::{BlockChain, BlockChainConfig};
+use crate::core::blockchain::BlockChainConfig;
+use crate::network::models::HttpScheme;
 use crate::network::node::{Node, NodeConfig};
+use crate::network::sender::Sender;
 
 pub mod crypto;
 pub mod core;
 pub mod network;
 pub mod application;
 
-pub static mut address: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
+pub static mut ADDRESS: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
 #[tokio::main]
 async fn main() {
-	unsafe {
-		let hash: [u8; 32] = [
-			0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF,
-		];
+	unsafe { ADDRESS = Some(P2PKHAddress::random()) }
+	const DIFFICULTY: u128 = 5000;
+	let target_value = gen_difficulty(DIFFICULTY);
 
-		let target: [u8; 32] = [
-			0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEE, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-			0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x12, 0x34, 0x56, 0x78, 0x90, 0xAB, 0xCD, 0xEF,
-		];
-		const DIFFICULTY: u128 = 50000;
-		let target_value = gen_difficulty(DIFFICULTY);
+	let node_config = NodeConfig {
+		listing_port: 8000,
+		http_scheme: HttpScheme::HTTP,
+		max_peers: 128,
+		peer_cycle_count: 10,
+		trusted_peers: Default::default(),
+	};
 
-		let blockchain = BlockChain::new_empty(BlockChainConfig {
-			target_value,
-			reward: 10,
-			block_size: 1024,
-			trust_threshold: 6,
-			transaction_fee_multiplier: 1.0,
-			max_transaction_fee: 10,
-		});
-		let node = Node::new(blockchain, NodeConfig {
-			default_transaction_ttl: 10,
-			default_block_ttl: 10,
-			listing_port: 25565,
-		});
-		let seed_peers = vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 25565)];
-		let node = node.start_node(seed_peers).await.expect("Unable to start node");
+	let blockchain_config = BlockChainConfig {
+		target_value,
+		reward: 10,
+		block_size: 1024,
+		trust_threshold: 6,
+		transaction_fee_multiplier: 1.0,
+		max_transaction_fee: 10,
+	};
+
+	let mut node = Node::new(0, node_config, blockchain_config);
+	node.start_node();
+	tokio::time::sleep(Duration::from_millis(1000)).await;
+
+	let client = Client::new();
+	if let Ok(inf) = Sender::get_blockchain_info(&client, Url::parse("http://192.168.1.104:8000").unwrap()).await {
+		println!("{:?}", inf);
 	}
+	tokio::signal::ctrl_c().await.unwrap();
+	//
+	// let msg = TestBody {
+	// 	test: "asdasd".to_string(),
+	// };
+	// let data = standard_serialize(&msg).unwrap();
+	//
+	// let c = reqwest::Client::new();
+	// let response = c.("http://192.168.1.104:8000/test")
+	// 	.body(data)
+	// 	.header(reqwest::header::CONTENT_TYPE, "application/octet-stream") // Set the content type
+	// 	.send().await.unwrap();
+	// println!("{:?}", response.text().await.unwrap());
+	// tokio::signal::ctrl_c().await.unwrap();
+	// handle.stop(false).await;
 }
-
-
-// fn test_blockchain() {
-//
-// 	let config = BlockChainConfig {
-// 		difficulty: 10,
-// 		reward: 10,
-// 		block_size: 1,
-// 		trust_threshold: 0,
-// 		transaction_fee_multiplier: 0.5,
-// 		max_transaction_fee: 10,
-// 	};
-// 	let bob = P2PKHAddress::random();
-// 	let alice = P2PKHAddress::random();
-// 	let charlie = P2PKHAddress::random();
-//
-// 	let mut blockchain = BlockChain::new(vec![Block::genesis()], vec![], config);
-//
-// 	// let mut t1 = Transaction::new_unsigned(0, 13, &alice.0, &bob.1, &bob.0, 10);
-// 	// let mut t2 = Transaction::new_unsigned(0, 316, &bob.0, &charlie.1, &charlie.0, 15);
-// 	// let mut t3 = Transaction::new_unsigned(0, 6317, &charlie.0, &alice.1, &alice.0, 30);
-// 	//
-// 	// t1.sign(&alice.2).unwrap();
-// 	// t2.sign(&bob.2).unwrap();
-// 	// t3.sign(&charlie.2).unwrap();
-// 	//
-// 	// let b1 = Block::new(vec![t1], 0, 1);
-// 	// let b2 = Block::new(vec![t2], 0, 2);
-// 	// let b3 = Block::new(vec![t3], 0, 3);
-// 	//
-// 	// blockchain.add_block(b1);
-// 	// blockchain.add_block(b2);
-// 	// blockchain.add_block(b3);
-// }

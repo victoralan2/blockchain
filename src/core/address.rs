@@ -54,15 +54,15 @@ impl P2PKHAddress {
 // #[derive(Clone, PartialEq)]
 // pub struct Address {
 // 	pub public_key: PublicKey,
-// 	pub address: String
+// 	pub ADDRESS: String
 // }
 // impl Debug for Address {
 // 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 // 		let public_key_str = hex::encode(Dilithium::serialize_pkey(self.public_key));
-// 		let address_str = &self.address;
+// 		let address_str = &self.ADDRESS;
 //
 // 		// Format the struct fields as a JSON object
-// 		write!(f, r#"{{ "public_key": "{}", "address": "{}" }}"#, public_key_str, address_str)
+// 		write!(f, r#"{{ "public_key": "{}", "ADDRESS": "{}" }}"#, public_key_str, address_str)
 // 	}
 // }
 // impl Address {
@@ -70,20 +70,20 @@ impl P2PKHAddress {
 // 		let keypair = Dilithium::gen_dilithium();
 // 		let addr = Address {
 // 			public_key: keypair.0,
-// 			address: hash(&Dilithium::serialize_pkey(keypair.0)).to_base58(),
+// 			ADDRESS: hash(&Dilithium::serialize_pkey(keypair.0)).to_base58(),
 // 		};
 // 		(addr, keypair.1)
 // 	}
 // 	pub fn from(pk: PublicKey) -> Self {
 // 		Address {
 // 			public_key: pk,
-// 			address: hash(&Dilithium::serialize_pkey(pk)).to_base58(),
+// 			ADDRESS: hash(&Dilithium::serialize_pkey(pk)).to_base58(),
 // 		}
 // 	}
 // 	pub fn null() -> Self {
 // 		Address {
 // 			public_key: Dilithium::pkey_from_bytes(&[0u8; 2592]).unwrap(),
-// 			address: String::new(),
+// 			ADDRESS: String::new(),
 // 		}
 // 	}
 // }

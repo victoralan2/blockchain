@@ -1,6 +1,8 @@
 use std::collections::HashSet;
-use pqcrypto_dilithium::dilithium5::{SecretKey};
+
+use pqcrypto_dilithium::dilithium5::SecretKey;
 use serde::{Deserialize, Serialize};
+
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
 use crate::core::Hashable;
 use crate::core::utxo::{Input, Output, UTXO};
@@ -11,7 +13,6 @@ pub struct Transaction {
 	pub id: [u8; 32],
 	pub input_list: Vec<Input>,
 	pub output_list: Vec<Output>,
-	pub time: u64,
 }
 
 impl Transaction {
@@ -20,7 +21,6 @@ impl Transaction {
 			id: [0u8; 32],
 			input_list: vec![],
 			output_list: vec![],
-			time: 0,
 		};
 		s.update_hash();
 		s
@@ -65,9 +65,10 @@ impl Transaction {
 		budget == spent
 	}
 	pub fn is_valid_heuristic(&self) -> bool {
+		let is_tx_size_valid = self.input_list.len() < 128 && self.output_list.len() < 128;
 		let are_inputs_unique = self.are_inputs_unique();
 		let are_signatures_valid = self.verify_input_signatures();
-		are_signatures_valid && are_inputs_unique
+		are_signatures_valid && are_inputs_unique && is_tx_size_valid
 	}
 	pub fn are_inputs_unique(&self) -> bool {
 		let mut output_indexes = HashSet::new();
@@ -80,7 +81,6 @@ impl Transaction {
 	}
 	/// Checks if the transaction's signature is valid, if the hash is valid and if the sender can afford to send this transaction
 	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
-
 		self.is_valid_heuristic() && self.do_sum(blockchain) && self.validate_inputs(blockchain)
 	}
 	pub fn create_utxo_list(&self) -> Vec<UTXO>{
@@ -92,7 +92,6 @@ impl Transaction {
 				output_index: i,
 				amount: output.amount,
 				recipient_address: output.address.clone(),
-				time: 0,
 			};
 			utxos.push(utxo);
 		}

@@ -1,13 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use pqcrypto_dilithium::dilithium5::PublicKey;
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+
 use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
 use crate::core::blockchain::{BlockChain, BlockChainConfig};
 use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
-use crate::crypto::public_key::Dilithium;
 use crate::crypto::hash::hash;
+use crate::crypto::public_key::Dilithium;
+
 pub mod transaction;
 pub mod coinbase;
 
@@ -21,7 +23,6 @@ impl UTXOSet {
 			output_index: 0,
 			amount: genesis.calculate_reward(config),
 			recipient_address,
-			time: 0,
 		};
 		let mut map = HashMap::new();
 		map.insert([0u8; 32], vec![utxo]);
@@ -47,11 +48,10 @@ pub struct UTXO {
 	pub output_index: usize,
 	pub amount: u64,
 	pub recipient_address: P2PKHAddress,
-	pub time: u64,
 }
 impl Output {
 	pub fn calculate_hash(&self) -> [u8; 32] {
-		let str = format!("{}.{}", hex::encode(&self.address.address), hex::encode(self.calculate_hash()));
+		let str = format!("{}.{}", hex::encode(self.address.address), self.amount);
 		hash(str.as_bytes())
 	}
 }
