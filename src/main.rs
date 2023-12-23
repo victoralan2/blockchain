@@ -3,9 +3,8 @@ use std::time::Duration;
 use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
 use reqwest::{Client, Url};
 
-use crate::application::gen_difficulty;
 use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::BlockChainConfig;
+use crate::core::parameters::Parameters;
 use crate::network::models::HttpScheme;
 use crate::network::node::{Node, NodeConfig};
 use crate::network::sender::Sender;
@@ -14,14 +13,12 @@ pub mod crypto;
 pub mod core;
 pub mod network;
 pub mod application;
+mod consensus;
 
-pub static mut ADDRESS: Option<(P2PKHAddress, PublicKey, SecretKey)> = None;
+pub static mut ADDRESS: Option<(P2PKHAddress, Vec<u8>, Vec<u8>)> = None;
 #[tokio::main]
 async fn main() {
 	unsafe { ADDRESS = Some(P2PKHAddress::random()) }
-	const DIFFICULTY: u128 = 5000;
-	let target_value = gen_difficulty(DIFFICULTY);
-
 	let node_config = NodeConfig {
 		listing_port: 8000,
 		http_scheme: HttpScheme::HTTP,
@@ -30,16 +27,9 @@ async fn main() {
 		trusted_peers: Default::default(),
 	};
 
-	let blockchain_config = BlockChainConfig {
-		target_value,
-		reward: 10,
-		block_size: 1024,
-		trust_threshold: 6,
-		transaction_fee_multiplier: 1.0,
-		max_transaction_fee: 10,
-	};
+	let parameters = Parameters::default();
 
-	let mut node = Node::new(0, node_config, blockchain_config);
+	let mut node = Node::new(0, node_config, parameters);
 	node.start_node();
 	tokio::time::sleep(Duration::from_millis(1000)).await;
 

@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::error::Error;
+use std::hint::spin_loop;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use actix_web::{App, HttpServer};
 use actix_web::dev::ServerHandle;
@@ -12,15 +13,16 @@ use rand::prelude::IteratorRandom;
 use rand::thread_rng;
 use reqwest::{Client, Url};
 use serde::{Serialize};
+use spin_sleep::SpinStrategy;
 use tokio::spawn;
 use tokio::sync::RwLock;
 
 use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::{BlockChain, BlockChainConfig};
+use crate::core::blockchain::{BlockChain};
+use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
 use crate::network::{config};
 use crate::network::config::config_routes;
-use crate::network::miner::Miner;
 use crate::network::models::{HttpScheme, NewBlock, NewTransaction, PairUp};
 use crate::network::sender::Sender;
 use crate::network::standard::standard_serialize;
@@ -37,28 +39,41 @@ pub struct NodeConfig {
 #[derive(Clone)]
 pub struct Node {
 	pub version: u32,
+	pub current_slot: Arc<AtomicU64>,
 	pub blockchain: Arc<RwLock<BlockChain>>,
 	pub peers: Arc<RwLock<HashSet<Url>>>,
 	pub shutdown: Arc<AtomicBool>,
 	pub server_handle: Option<ServerHandle>,
-	pub should_mine: Arc<AtomicBool>,
 	pub config: NodeConfig,
+	pub parameters: Parameters,
 }
 
 impl Node {
-	pub fn new(version: u32, config: NodeConfig, blockchain_config: BlockChainConfig) -> Self {
+	pub fn new(version: u32, config: NodeConfig, parameters: Parameters) -> Self {
 		Self {
 			version,
-			blockchain: Arc::new(RwLock::new(BlockChain::new_empty(blockchain_config))),
+			current_slot: Arc::new(Default::default()),
+			blockchain: Arc::new(RwLock::new(BlockChain::new_empty(parameters))),
 			shutdown: Arc::new(AtomicBool::new(false)),
 			server_handle: None,
-			should_mine: Arc::new(AtomicBool::new(false)),
 			config,
 			peers: Arc::new(Default::default()),
+			parameters,
 		}
 	}
-
+	pub fn start(mut self) {
+		self.start_node();
+		let mut self_clone = self.clone();
+		spawn(async move {
+			self_clone.main_loop().await;
+		});
+		let mut self_clone = self.clone();
+		spawn(async move {
+			self_clone.heart_beat_thread().await;
+		});
+	}
 	pub fn start_node(&mut self)  {
+		// STARTS THE NODE, THE ENTRY POINT.
 		let app_state = Data::new(self.clone());
 		let server = HttpServer::new(move || {
 			App::new()
@@ -68,48 +83,48 @@ impl Node {
 			.bind(format!("{}:{}", local_ip().unwrap(), self.config.listing_port)).unwrap().run();
 		let handle = server.handle();
 		tokio::spawn(server);
+
 		self.server_handle = Some(handle);
 	}
-	pub fn start_mining_thread(&self, miner: P2PKHAddress) -> bool{
-		if !self.should_mine.load(Ordering::Relaxed) {
-			let mut copy = self.clone();
-			spawn(async move {
-				copy.mine(miner).await;
-			});
-			self.should_mine.store(true, Ordering::Relaxed);
-			true
-		} else {
-			false
+
+	pub async fn heart_beat_thread(&mut self) {
+ 		let interval: Duration = Duration::from_millis(self.parameters.technical_parameters.slot_duration as u64); // THE INTERVAL OF 2000 MILLISECONDS PER SLOT
+		loop {
+			let start = Instant::now();
+
+
+			// Do something
+			self.current_slot.fetch_add(1, Ordering::Release);
+			spin_sleep::SpinSleeper::new(0).with_spin_strategy(SpinStrategy::SpinLoopHint).sleep(interval - start.elapsed());
 		}
 	}
-	pub fn stop_mining_thread(&self) {
-		self.should_mine.store(false, Ordering::Relaxed);
-	}
+
 	pub async fn main_loop(&mut self) {
 		let mut counter = 0u32; // Counter to replace peers
 		const REPLACE_PEER_TIME: u32 = 10u32; // In seconds
 		while !self.shutdown.load(Ordering::Relaxed) {
 
 
-			// Check if pairs height is bigger
-			let self_copy = self.clone();
-			spawn(async move {
-				let peers = self_copy.peers.read().await.clone();
+			// // Check if pairs height is bigger
+			// let self_copy = self.clone();
+			// spawn(async move {
+			// 	let peers = self_copy.peers.read().await.clone();
+			//
+			// 	let client = Client::new();
+			// 	let current_height = self_copy.blockchain.read().await.get_height();
+			// 	for peer in peers {
+			// 		let info = tokio::time::timeout(Duration::from_millis(500), Sender::get_blockchain_info(&client, peer)).await; // Timeout because it may take a long time
+			// 		if let Ok(Ok(info)) = info {
+			// 			let height = info.height;
+			// 			if height > current_height {
+			// 				let mut self_copy_copy = self_copy.clone();
+			// 				spawn(async move {self_copy_copy.sync_chain().await});
+			// 				break;
+			// 			}
+			// 		}
+			// 	}
+			// });
 
-				let client = Client::new();
-				let current_height = self_copy.blockchain.read().await.get_height();
-				for peer in peers {
-					let info = tokio::time::timeout(Duration::from_millis(500), Sender::get_blockchain_info(&client, peer)).await; // Timeout because it may take a long time
-					if let Ok(Ok(info)) = info {
-						let height = info.height;
-						if height > current_height {
-							let mut self_copy_copy = self_copy.clone();
-							spawn(async move {self_copy_copy.sync_chain().await});
-							break;
-						}
-					}
-				}
-			});
 			// Check if peer list is full
 			if self.peers.read().await.len() < self.config.max_peers {
 				let mut self_copy = self.clone();
@@ -144,8 +159,6 @@ impl Node {
 		for _ in 0..N {
 			for p in current_peers.clone() {
 				// Sender::get_peers();
-
-
 			}
 		}
 		todo!()

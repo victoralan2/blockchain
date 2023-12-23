@@ -4,34 +4,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
 use crate::core::block::{Block, BlockHeader};
+use crate::core::parameters::Parameters;
 use crate::core::utxo::{UTXO, UTXOSet};
 use crate::core::utxo::transaction::Transaction;
 
-#[derive(Clone, Serialize, Deserialize, Copy)]
-pub struct BlockChainConfig {
-	pub(crate) target_value: [u8; 32], // Todo: Make this value automatically update like in btc
-	pub(crate) reward: u64,
-	pub(crate) block_size: usize, // in bytes
-	pub(crate) trust_threshold: u32,
-	pub(crate) transaction_fee_multiplier: f64,
-	pub(crate) max_transaction_fee: u64,
-}
 
-#[derive(Clone, Serialize, Deserialize)]
+
+#[derive(Clone)]
 pub struct BlockChain {
 	chain: Vec<Block>,
 	pub utxo_set: HashMap<[u8; 32], Vec<UTXO>>,
 	pub(crate) mempool: HashSet<Transaction>,
-	pub configuration: BlockChainConfig,
+	pub(crate) parameters: Parameters,
 }
 
 impl BlockChain {
-	pub fn new_empty(configuration: BlockChainConfig) -> Self {
-		let chain = vec![Block::genesis()];
-		BlockChain { chain, utxo_set: UTXOSet::genesis(configuration), mempool: Default::default(), configuration }
+	pub fn new_empty(parameters: Parameters) -> Self {
+		let chain = vec![];
+		BlockChain { chain, utxo_set: UTXOSet::genesis(parameters), mempool: Default::default(), parameters }
 	}
-	pub fn new(chain: Vec<Block>, mempool: HashSet<Transaction>, configuration: BlockChainConfig) -> Self {
-		BlockChain { chain, utxo_set: HashMap::new(),mempool, configuration }
+	pub fn new(chain: Vec<Block>, mempool: HashSet<Transaction>, parameters: Parameters) -> Self {
+		BlockChain { chain, utxo_set: HashMap::new(),mempool, parameters }
 	}
 	pub fn get_utxo_list(&self, txid: &[u8; 32]) -> Option<&Vec<UTXO>>{
 		self.utxo_set.get(txid)
@@ -135,17 +128,7 @@ impl BlockChain {
 				}
 				self.utxo_set.insert(tx.id, utxo_list);
 			}
-			let coinbase_utxo = UTXO {
-				txid: new_block.header.coinbase_transaction.id,
-				output_index: 0,
-				amount: new_block.header.coinbase_transaction.output.amount,
-				recipient_address: new_block.header.coinbase_transaction.output.address,
-			};
-			if let Some(coinbase_list) = self.utxo_set.get_mut(&[0u8; 32]) {
-				coinbase_list.push(coinbase_utxo);
-			} else {
-				self.utxo_set.insert([0u8; 32], vec![coinbase_utxo]);
-			}
+			// TODO: Add fees to the fee pool
 			self.chain.push(new_block.clone());
 			return true;
 		}

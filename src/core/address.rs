@@ -5,7 +5,7 @@ use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::hash::hash;
-use crate::crypto::public_key::Dilithium;
+use crate::crypto::public_key::PublicKeyAlgorithm;
 
 const SIGNATURE_BYTES: [u8; 2] = [0b0001000, 0b0001000];
 
@@ -14,10 +14,13 @@ pub struct P2PKHAddress {
 	pub address: [u8; 32]
 }
 impl P2PKHAddress {
-	pub fn random() -> (Self, PublicKey, SecretKey) {
-		let keypair = Dilithium::gen_dilithium();
+	/*
+		Returns an address, a public and a private key: (P2PKHAddress, public_key, private_key)
+	 */
+	pub fn random() -> (Self, Vec<u8>, Vec<u8>) {
+		let keypair = PublicKeyAlgorithm::gen_dilithium();
 		let addr = P2PKHAddress {
-			address: hash(&Dilithium::serialize_pkey(&keypair.0)),
+			address: hash(&keypair.0),
 		};
 		(addr, keypair.0, keypair.1)
 	}
@@ -38,9 +41,9 @@ impl P2PKHAddress {
 	pub fn to_string(&self) -> String {
 		Self::hash_to_address(self.address).to_base58()
 	}
-	pub fn from(pk: PublicKey) -> Self {
+	pub fn from(pk: Vec<u8>) -> Self {
 		P2PKHAddress {
-			address: hash(&Dilithium::serialize_pkey(&pk)),
+			address: hash(&pk),
 		}
 	}
 	pub fn hash_to_address(hash: [u8; 32]) -> [u8; 34]{

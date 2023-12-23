@@ -3,10 +3,10 @@ use std::collections::HashSet;
 use pqcrypto_dilithium::dilithium5::SecretKey;
 use serde::{Deserialize, Serialize};
 
-use crate::core::blockchain::{BlockChain, BlockChainConfig};
+use crate::core::blockchain::{BlockChain};
 use crate::core::Hashable;
-use crate::core::utxo::{Input, Output, UTXO};
-use crate::crypto::public_key::Dilithium;
+use crate::core::utxo::{Input, Output};
+use crate::crypto::public_key::PublicKeyAlgorithm;
 
 #[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
@@ -25,17 +25,16 @@ impl Transaction {
 		s.update_hash();
 		s
 	}
-	pub fn sign_inputs(&mut self, sk: &SecretKey) -> pqcrypto_traits::Result<()> {
+	pub fn sign_inputs(&mut self, sk: &SecretKey) {
 		for input in self.input_list.iter_mut() {
 			let hash = input.calculate_hash();
-			let signature = Dilithium::sign_dilithium(&sk, &hash);
+			let signature = PublicKeyAlgorithm::sign(sk, &hash);
 			input.signature = signature;
 		}
-		Ok(())
 	}
 	pub fn verify_input_signatures(&self) -> bool {
 		for input in &self.input_list {
-			if !input.verify_signature(self) {
+			if !input.verify_signature() {
 				return false;
 			}
 		}
@@ -43,7 +42,7 @@ impl Transaction {
 	}
 	pub fn validate_inputs(&self, blockchain: &BlockChain) -> bool {
 		 for input in &self.input_list {
-			 if !input.validate(self, blockchain) {
+			 if !input.validate(blockchain) {
 				 return false;
 			 }
 		 }
@@ -81,26 +80,7 @@ impl Transaction {
 	}
 	/// Checks if the transaction's signature is valid, if the hash is valid and if the sender can afford to send this transaction
 	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
+		// TODO: CHECK FOR THE FEE OUTPUT OR SMT
 		self.is_valid_heuristic() && self.do_sum(blockchain) && self.validate_inputs(blockchain)
-	}
-	pub fn create_utxo_list(&self) -> Vec<UTXO>{
-		let txid = self.id;
-		let mut utxos = Vec::new();
-		for (i, output) in self.output_list.iter().enumerate() {
-			let utxo = UTXO {
-				txid,
-				output_index: i,
-				amount: output.amount,
-				recipient_address: output.address.clone(),
-			};
-			utxos.push(utxo);
-		}
-		utxos
-	}
-	pub fn calculate_fee(&self, config: &BlockChainConfig) -> u64 { // TODO: CALCULATE FEE
-		// let fee = (config.transaction_fee_multiplier * self.output_list as f64).floor() as u64;
-		// let max_fee = config.max_transaction_fee;
-		// min(fee, max_fee)
-		0
 	}
 }

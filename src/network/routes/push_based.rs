@@ -26,6 +26,8 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 
 pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock>) -> impl Responder {
 	// TODO CHECK IF THE BLOCK IS THE SAME HEIGHT AS THE CURRENT ONE AND STILL VALID
+	// TODO: CHECK IF BLOCK IS THE SAME SLOT AS CURRENT
+	// TODO: IF BLOCK IS THE SAME SLOT AND THE SAME HEIGHT CHECK IF LOTTERY NUMBER IS SMALLER IN THIS ONE
 
 	let request_version = msg.version;
 	let required_version = node.version;

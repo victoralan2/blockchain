@@ -2,23 +2,21 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::ADDRESS;
 use crate::core::{Hashable, is_smaller};
-use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::{BlockChain, BlockChainConfig};
-use crate::core::utxo::coinbase::CoinbaseTransaction;
+use crate::core::blockchain::{BlockChain};
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
+use crate::crypto::public_key::PublicKeyAlgorithm;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
 	pub hash: [u8; 32],
 	pub height: usize,
 	pub previous_hash: [u8; 32],
-	pub nonce: u64,
 	pub time: u64,
 	pub merkle_root: [u8; 32],
-	pub coinbase_transaction: CoinbaseTransaction,
+	pub forger_signature: Vec<u8>,
+	pub forger_key: Vec<u8>,
 }
 pub type BlockContent = Vec<Transaction>;
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
@@ -28,34 +26,32 @@ pub struct Block {
 }
 
 impl Block {
-	pub fn new(height: usize, transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], miner_address: P2PKHAddress, blockchain_config: BlockChainConfig) -> Self {
+
+	pub fn new(height: usize, transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], private_key: &Vec<u8>, public_key: &Vec<u8>) -> Self {
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			height,
 			previous_hash,
 			time,
-			nonce: 0,
 			merkle_root: [0u8; 32],
-			coinbase_transaction: CoinbaseTransaction::genesis(),
+			forger_signature: vec![],
+			forger_key: public_key.clone(),
 		};
 		let mut block = Block { header, transactions };
-		let coinbase = CoinbaseTransaction::create(miner_address, block.calculate_reward(blockchain_config));
-		block.header.coinbase_transaction = coinbase;
 
+		block.sign(private_key);
 		block.update_hash();
 		block
 	}
 	pub fn genesis() -> Self {
-		let addr = P2PKHAddress::random();
-		unsafe { ADDRESS = Some(addr); }
-		let header = BlockHeader{
+		let header = BlockHeader {
 			hash: [0u8; 32],
 			height: 0,
 			previous_hash:  [0u8; 32],
 			time: 0u64,
-			nonce: 0,
 			merkle_root: [0u8; 32],
-			coinbase_transaction: CoinbaseTransaction::genesis(),
+			forger_signature: vec![],
+			forger_key: vec![],
 		};
 		let mut block = Block {
 			transactions: vec![],
@@ -64,9 +60,23 @@ impl Block {
 		block.update_hash();
 		block
 	}
-	pub fn calculate_reward(&self, config: BlockChainConfig) -> u64 {
-		// TODO
-		0
+	pub fn sign(&mut self, private_key: &[u8]) {
+		let hash = self.calculate_hash();
+		if let Ok(sk) = PublicKeyAlgorithm::skey_from_bytes(private_key) {
+			self.header.forger_signature = PublicKeyAlgorithm::sign(&sk, &hash);
+		}
+	}
+	pub fn verify_signature(&self) -> bool {
+		let hash = self.calculate_hash();
+		let signature =  &self.header.forger_signature;
+		if let Ok(pk) = PublicKeyAlgorithm::pkey_from_bytes(&self.header.forger_key) {
+			if let Some(data) = PublicKeyAlgorithm::open(&pk, signature) {
+				if data == hash {
+					return true;
+				}
+			}
+		}
+		false
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
 		let mut hashes: Vec<[u8; 32]> = Vec::new();
@@ -87,11 +97,9 @@ impl Block {
 		}
 		let is_hash_correct = self.calculate_hash() == self.header.hash;
 		let is_height_correct = self.header.height == blockchain.get_height();
-		let is_pow_valid = is_smaller(&self.header.hash, &blockchain.configuration.target_value); // TODO: Check that value is valid for its time and not for the current target value
 		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
-		let is_coinbase_tx_valid = self.header.coinbase_transaction.is_valid(blockchain);
-
-		if !(is_merkle_tree_correct && is_hash_correct && is_pow_valid && is_height_correct && is_coinbase_tx_valid) {
+		// TODO: Check for leader validity
+		if !(is_merkle_tree_correct && is_hash_correct && is_height_correct) {
 			return false;
 		}
 		let mut input_tx_list = HashSet::new();
@@ -108,7 +116,6 @@ impl Block {
 				return false;
 			}
 		}
-
 		true
 	}
 }
