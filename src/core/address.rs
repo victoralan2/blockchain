@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Display};
 
 use base58::{FromBase58, FromBase58Error, ToBase58};
-use pqcrypto_dilithium::dilithium5::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::hash::hash;
@@ -18,7 +17,7 @@ impl P2PKHAddress {
 		Returns an address, a public and a private key: (P2PKHAddress, public_key, private_key)
 	 */
 	pub fn random() -> (Self, Vec<u8>, Vec<u8>) {
-		let keypair = PublicKeyAlgorithm::gen_dilithium();
+		let keypair = PublicKeyAlgorithm::gen_keypair();
 		let addr = P2PKHAddress {
 			address: hash(&keypair.0),
 		};

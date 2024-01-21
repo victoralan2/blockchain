@@ -30,8 +30,9 @@ pub struct NetworkParameters {
 impl Default for NetworkParameters {
 	fn default() -> Self {
 		// TODO: Fix this default parameters
+		// TODO: Check for this parameters when receiving
 		NetworkParameters {
-			max_block_body_size: 10u32.pow(16), // 65536B -> 64Kib
+			max_block_body_size: 2u32.pow(16), // 65536B -> 64Kib
 			max_block_header_size: 2u32.pow(10), // 1024B -> 1KiB
 			max_tx_size: 2u32.pow(10), // 512B
 		}
@@ -45,6 +46,7 @@ pub struct EconomicParameters {
 impl Default for EconomicParameters {
 	fn default() -> Self {
 		// TODO: Fix this default parameters
+		// TODO: Actually use this parameter
 		Self {
 			fee_per_tx_byte: 10,
 		}

@@ -6,8 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::network::routes::{handshake, p2p, pull_based, push_based};
 
-
-
 pub const VERSION_URL: &str = "/version";
 pub const GET_BLOCKCHAIN_INFO_URL: &str = "/get-blockchain-info";
 pub const NEW_TRANSACTION_URL: &str = "/tx";

@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use std::error::Error;
 use std::io;
-use std::io::{Bytes, ErrorKind};
+use std::io::ErrorKind;
+
 use reqwest::{Client, Response, StatusCode, Url};
-use serde_json::to_vec;
-use crate::core::blockchain::BlockChain;
+
 use crate::network::config;
-use crate::network::models::{BlockchainInfo, GetHeaders, PairUp};
+use crate::network::models::{BlockchainInfo, PairUp};
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
 pub struct Sender;

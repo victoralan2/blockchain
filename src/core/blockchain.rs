@@ -1,14 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize, Serialize};
-
 use crate::core::address::P2PKHAddress;
 use crate::core::block::{Block, BlockHeader};
 use crate::core::parameters::Parameters;
 use crate::core::utxo::{UTXO, UTXOSet};
 use crate::core::utxo::transaction::Transaction;
-
-
 
 #[derive(Clone)]
 pub struct BlockChain {
@@ -20,7 +16,7 @@ pub struct BlockChain {
 
 impl BlockChain {
 	pub fn new_empty(parameters: Parameters) -> Self {
-		let chain = vec![];
+		let chain = vec![Block::genesis()];
 		BlockChain { chain, utxo_set: UTXOSet::genesis(parameters), mempool: Default::default(), parameters }
 	}
 	pub fn new(chain: Vec<Block>, mempool: HashSet<Transaction>, parameters: Parameters) -> Self {

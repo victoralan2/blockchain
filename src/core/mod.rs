@@ -2,7 +2,7 @@ use std::io::Read;
 
 use crate::core::block::Block;
 use crate::core::utxo::transaction::Transaction;
-use crate::crypto::hash::{hash};
+use crate::crypto::hash::hash;
 use crate::crypto::hash::merkle::calculate_merkle_root;
 
 pub mod blockchain;
@@ -41,7 +41,7 @@ impl Hashable for Transaction {
 		let output_hash_list = self.output_list.iter().map(|x|x.calculate_hash()).collect();
 		let outputs = hex::encode(calculate_merkle_root(output_hash_list));
 
-		let str = format!("{}.{}", inputs, outputs);
+		let str = format!("{}.{}.{}", inputs, outputs, self.extra_entropy);
 		hash(str.as_bytes())
 	}
 	fn update_hash(&mut self) {

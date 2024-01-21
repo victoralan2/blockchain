@@ -2,11 +2,11 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::{Hashable, is_smaller};
-use crate::core::blockchain::{BlockChain};
+use crate::core::blockchain::BlockChain;
+use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
-use crate::crypto::public_key::PublicKeyAlgorithm;
+use crate::crypto::public_key::{PublicKeyAlgorithm, PublicKeyError};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
@@ -27,7 +27,7 @@ pub struct Block {
 
 impl Block {
 
-	pub fn new(height: usize, transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], private_key: &Vec<u8>, public_key: &Vec<u8>) -> Self {
+	pub fn new(height: usize, transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], public_key:&[u8], private_key: &[u8]) -> Result<Self, PublicKeyError> {
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			height,
@@ -35,19 +35,20 @@ impl Block {
 			time,
 			merkle_root: [0u8; 32],
 			forger_signature: vec![],
-			forger_key: public_key.clone(),
+			forger_key: public_key.to_vec(),
 		};
 		let mut block = Block { header, transactions };
 
-		block.sign(private_key);
+		block.sign(private_key)?;
 		block.update_hash();
-		block
+		Ok(block)
 	}
 	pub fn genesis() -> Self {
+		const EXTRA_ENTROPY:  [u8; 32] = [60, 92, 162, 110, 82, 120, 10, 250, 102, 233, 226, 182, 114, 155, 80, 178, 35, 57, 107, 9, 122, 187, 253, 38, 160, 225, 171, 15, 110, 230, 47, 21];
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			height: 0,
-			previous_hash:  [0u8; 32],
+			previous_hash: EXTRA_ENTROPY,
 			time: 0u64,
 			merkle_root: [0u8; 32],
 			forger_signature: vec![],
@@ -60,25 +61,21 @@ impl Block {
 		block.update_hash();
 		block
 	}
-	pub fn sign(&mut self, private_key: &[u8]) {
+	pub fn sign(&mut self, private_key: &[u8]) -> Result<(), PublicKeyError>{
 		let hash = self.calculate_hash();
-		if let Ok(sk) = PublicKeyAlgorithm::skey_from_bytes(private_key) {
-			self.header.forger_signature = PublicKeyAlgorithm::sign(&sk, &hash);
-		}
+		self.header.forger_signature = PublicKeyAlgorithm::sign(private_key, &hash)?;
+		Ok(())
 	}
 	pub fn verify_signature(&self) -> bool {
 		let hash = self.calculate_hash();
 		let signature =  &self.header.forger_signature;
-		if let Ok(pk) = PublicKeyAlgorithm::pkey_from_bytes(&self.header.forger_key) {
-			if let Some(data) = PublicKeyAlgorithm::open(&pk, signature) {
-				if data == hash {
-					return true;
-				}
-			}
+		if PublicKeyAlgorithm::verify(&self.header.forger_key, &hash, signature).is_ok() {
+			return true;
 		}
 		false
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
+
 		let mut hashes: Vec<[u8; 32]> = Vec::new();
 		for tx in &self.transactions {
 			hashes.push(tx.calculate_hash());

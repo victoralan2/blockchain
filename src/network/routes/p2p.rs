@@ -5,7 +5,7 @@ use actix_web::{HttpRequest, HttpResponse, Responder, web};
 use regex::Regex;
 use reqwest::Url;
 
-use crate::network::models::{HttpScheme, SendPeers, PairUp};
+use crate::network::models::{HttpScheme, PairUp, SendPeers};
 use crate::network::models::http_errors::ErrorType;
 use crate::network::node::Node;
 use crate::network::standard;

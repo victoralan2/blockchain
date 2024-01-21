@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 use crate::core::block::{Block, BlockContent, BlockHeader};
@@ -36,7 +37,8 @@ pub struct GetHeaders {
 pub struct BlockchainInfo {
 	pub(crate) version: u32,
 	pub(crate) height: usize,
-	pub(crate) best_block: [u8; 32],
+	pub(crate) best_block_header: BlockHeader,
+	pub(crate) mempool_size: usize,
 }
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Headers {

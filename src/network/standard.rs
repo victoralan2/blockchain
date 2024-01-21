@@ -1,8 +1,9 @@
 use std::error::Error;
+
 use actix_bincode::BincodeSerde;
 use bincode::error::{DecodeError, EncodeError};
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 pub type StandardExtractor<T> = BincodeSerde<T>; // TODO CHANGE THIS AT BincodeSerde WHEN NOT TESTING
 pub fn standard_serialize<T>(object: &T) -> Result<Vec<u8>, Box<dyn Error>> // TODO CHANGE THIS AT BincodeSerde WHEN NOT TESTING

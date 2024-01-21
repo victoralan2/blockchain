@@ -1,4 +1,4 @@
-use num_bigint::{BigUint};
+use num_bigint::BigUint;
 
 pub fn gen_difficulty(difficulty: u128) -> [u8; 32] {
 	let a = BigUint::from_bytes_be(&[255u8; 32]);

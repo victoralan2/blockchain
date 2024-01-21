@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::{BlockChain};
+use crate::core::blockchain::BlockChain;
 use crate::core::parameters::Parameters;
 use crate::crypto::hash::hash;
 use crate::crypto::public_key::PublicKeyAlgorithm;
@@ -54,10 +54,8 @@ impl Input {
 		// TODO: Check code
 		let hash = self.calculate_hash();
 		let signature =  &self.signature;
-		if let Some(data) = PublicKeyAlgorithm::open(&self.public_key, signature) {
-			if data == hash {
-				return true;
-			}
+		if PublicKeyAlgorithm::verify(&self.public_key, &hash, signature).is_ok() {
+			return true;
 		}
 		false
 	}

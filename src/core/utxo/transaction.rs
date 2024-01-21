@@ -1,36 +1,38 @@
 use std::collections::HashSet;
 
-use pqcrypto_dilithium::dilithium5::SecretKey;
 use serde::{Deserialize, Serialize};
 
-use crate::core::blockchain::{BlockChain};
+use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::{Input, Output};
-use crate::crypto::public_key::PublicKeyAlgorithm;
+use crate::crypto::public_key::{PublicKeyAlgorithm, PublicKeyError};
 
 #[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
 	pub id: [u8; 32],
+	pub extra_entropy: u16,
 	pub input_list: Vec<Input>,
 	pub output_list: Vec<Output>,
 }
 
 impl Transaction {
-	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>) -> Self {
+	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>, extra_entropy: u16) -> Self {
 		let mut s = Self {
 			id: [0u8; 32],
+			extra_entropy: 0,
 			input_list: vec![],
 			output_list: vec![],
 		};
 		s.update_hash();
 		s
 	}
-	pub fn sign_inputs(&mut self, sk: &SecretKey) {
+	pub fn sign_inputs(&mut self, sk: &[u8]) -> Result<(), PublicKeyError> {
 		for input in self.input_list.iter_mut() {
 			let hash = input.calculate_hash();
-			let signature = PublicKeyAlgorithm::sign(sk, &hash);
+			let signature = PublicKeyAlgorithm::sign(&sk, &hash)?;
 			input.signature = signature;
 		}
+		Ok(())
 	}
 	pub fn verify_input_signatures(&self) -> bool {
 		for input in &self.input_list {

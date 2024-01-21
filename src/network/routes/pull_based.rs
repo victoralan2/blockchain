@@ -11,7 +11,8 @@ pub async fn handle_get_blockchain_info(node: web::Data<Node>) -> impl Responder
 	let info = BlockchainInfo {
 		version: node.version,
 		height: chain.get_height(),
-		best_block: chain.get_last_block().header.hash,
+		best_block_header: chain.get_last_block().header.clone(),
+		mempool_size: chain.mempool.len()
 	};
 	if let Ok(serialized) = standard_serialize(&info) {
 		HttpResponse::Ok().body(serialized)
