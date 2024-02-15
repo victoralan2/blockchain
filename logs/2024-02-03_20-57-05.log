@@ -1,0 +1,76 @@
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Starting the node
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Started node at: 192.168.1.104:4321
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Node started successfully
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Started main loop thread
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Started heart beat thread
+[2024-02-03_20-57-05 INFO src\network\node.rs blockchain::network::node] Info: Height: 1
+[2024-02-03_20-57-06 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-57-06 INFO src\network\node.rs blockchain::network::node] Took about 40.1µs to add to chain
+[2024-02-03_20-57-08 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-11 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-14 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-17 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-20 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-23 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-26 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-29 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-32 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-35 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-38 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-41 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-44 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-47 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-57-48 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-57-48 INFO src\network\node.rs blockchain::network::node] Took about 24.4µs to add to chain
+[2024-02-03_20-57-48 INFO src\network\node.rs blockchain::network::node] Sending bytes to http://localhost:1234/block
+[2024-02-03_20-57-49 INFO src\network\node.rs blockchain::network::node] Finished broadcasting
+[2024-02-03_20-57-50 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-57-53 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-57-56 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-57-59 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-02 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-05 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-08 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-11 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-14 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-17 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-20 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-23 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-26 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-29 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-30 INFO src\network\node.rs blockchain::network::node] Sending bytes to http://localhost:1234/block
+[2024-02-03_20-58-31 INFO src\network\node.rs blockchain::network::node] Finished broadcasting
+[2024-02-03_20-58-32 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-35 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-38 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-41 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-58-43 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-58-43 INFO src\network\node.rs blockchain::network::node] Took about 21.4µs to add to chain
+[2024-02-03_20-58-43 INFO src\network\node.rs blockchain::network::node] Sending bytes to http://localhost:1234/block
+[2024-02-03_20-58-44 INFO src\network\node.rs blockchain::network::node] Finished broadcasting
+[2024-02-03_20-58-44 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-58-47 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-58-50 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-58-53 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-58-56 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-58-59 INFO src\network\node.rs blockchain::network::node] Info: Height: 4
+[2024-02-03_20-59-00 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-59-00 INFO src\network\node.rs blockchain::network::node] Took about 26µs to add to chain
+[2024-02-03_20-59-00 INFO src\network\node.rs blockchain::network::node] Sending bytes to http://localhost:1234/block
+[2024-02-03_20-59-01 INFO src\network\node.rs blockchain::network::node] Finished broadcasting
+[2024-02-03_20-59-02 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-05 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-08 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-10 INFO src\network\routes\push_based.rs blockchain::network::routes::push_based] Received blockReceived blockReceived blockReceived blockReceived blockReceived blockReceived block
+[2024-02-03_20-59-11 INFO src\network\routes\push_based.rs blockchain::network::routes::push_based] Received blockReceived blockReceived blockReceived blockReceived blockReceived blockReceived block
+[2024-02-03_20-59-11 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-14 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-17 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-20 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-23 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-26 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-29 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-32 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-35 INFO src\main.rs blockchain] Shutting down program...
+[2024-02-03_20-59-35 INFO src\network\node.rs blockchain::network::node] Info: Height: 5
+[2024-02-03_20-59-36 INFO src\main.rs blockchain] Program exited successfully

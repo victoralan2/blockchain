@@ -1,85 +1,158 @@
 use std::collections::HashSet;
+use std::mem::size_of_val;
+use std::process::{exit, ExitCode, ExitStatus};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use actix_web::{App, HttpServer};
 use actix_web::dev::ServerHandle;
-use actix_web::web::Data;
+use actix_web::web::{Data, to};
 use local_ip_address::local_ip;
 use rand::prelude::IteratorRandom;
 use rand::thread_rng;
 use reqwest::{Client, Url};
+use rsntp::{AsyncSntpClient, Config, SynchroniztationError};
 use serde::Serialize;
-use tokio::spawn;
+use tokio::runtime::Handle;
 use tokio::sync::RwLock;
 use tokio::task::block_in_place;
+use crate::consensus::lottery::Lottery;
 
 use crate::core::block::Block;
 use crate::core::blockchain::BlockChain;
+use crate::core::keys::NodeKeyChain;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
-use crate::crypto::public_key::PublicKeyAlgorithm;
-use crate::network::config;
+use crate::crypto::vrf::{prove, VrfPk, VrfSk};
+use crate::network::{config, timing};
 use crate::network::config::config_routes;
 use crate::network::models::{HttpScheme, NewBlock, NewTransaction};
 use crate::network::sender::Sender;
 use crate::network::standard::standard_serialize;
+
+const DEFAULT_PORT: u16 = 1379;
 
 #[derive(Clone)]
 pub struct NodeConfig {
 	pub(crate) listing_port: u16,
 	pub(crate) http_scheme: HttpScheme,
 	pub(crate) max_peers: usize,
+	/// The amount of peers that will cycle each time
 	pub(crate) peer_cycle_count: usize,
 	pub(crate) trusted_peers: HashSet<Url>,
 }
 
+impl Default for NodeConfig {
+	fn default() -> Self {
+		Self {
+			listing_port: DEFAULT_PORT,
+			http_scheme: HttpScheme::HTTP,
+			max_peers: 128,
+			peer_cycle_count: 8,
+			trusted_peers: Default::default(),
+		}
+	}
+}
+
 #[derive(Clone)]
-pub struct Node { // TODO: Keys... and stuff
+pub struct Node {
+	// TODO: Keys... and stuff
 	pub version: u32,
 	pub current_slot: Arc<AtomicU64>,
 	pub blockchain: Arc<RwLock<BlockChain>>,
-	pub peers: Arc<RwLock<HashSet<Url>>>, // TODO: Implement gossip protocol instead of broadcasting everything to everyone
+	pub peers: Arc<RwLock<HashSet<Url>>>,
+	// TODO: Implement gossip protocol instead of broadcasting everything to everyone
 	shutdown: Arc<AtomicBool>,
+	key_chain: NodeKeyChain,
 	pub server_handle: Option<ServerHandle>,
 	pub config: NodeConfig,
 	pub parameters: Parameters,
 }
 
+pub(crate) const STARTING_SLOT_SECOND: u64 = 0;
+
+// TODO: AT THE END CHANGE THIS NUMBER FOR THE EPOCH SECOND OF THE TIME THE CRYPTO IS RELEASED
 impl Node {
-	pub fn new(version: u32, config: NodeConfig, parameters: Parameters) -> Self {
+	pub async fn default(version: u32) -> Self {
+		let ntp_client = AsyncSntpClient::new();
+		let slot_time = ntp_client.synchronize("time.google.com").await
+			.expect("Unable to sync with NTP server")
+			.datetime()
+			.unix_timestamp()
+			.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
+		let parameters = Parameters::default();
+
 		Self {
 			version,
-			current_slot: Arc::new(Default::default()),
+			current_slot: Arc::new(AtomicU64::new(slot_time.as_millis() as u64 / parameters.technical_parameters.slot_duration as u64)),
 			blockchain: Arc::new(RwLock::new(BlockChain::new_empty(parameters))),
 			shutdown: Arc::new(AtomicBool::new(false)),
+			key_chain: NodeKeyChain::random(),
+			server_handle: None,
+			config: NodeConfig::default(),
+			peers: Arc::new(Default::default()), // TODO: Load from default file
+			parameters,
+		}
+	}
+	pub async fn new(version: u32, config: NodeConfig, parameters: Parameters) -> Self {
+		let ntp_client = AsyncSntpClient::new();
+		let slot_time = ntp_client.synchronize("time.google.com").await
+			.expect("Unable to sync with NTP server")
+			.datetime()
+			.unix_timestamp()
+			.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
+		let peers = config.trusted_peers.clone();
+		Self {
+			version,
+			current_slot: Arc::new(AtomicU64::new(slot_time.as_millis() as u64 / parameters.technical_parameters.slot_duration as u64)),
+			blockchain: Arc::new(RwLock::new(BlockChain::new_empty(parameters))),
+			shutdown: Arc::new(AtomicBool::new(false)),
+			key_chain: NodeKeyChain::random(),
 			server_handle: None,
 			config,
-			peers: Arc::new(Default::default()),
+			peers: Arc::new(RwLock::new(peers)),
 			parameters,
 		}
 	}
 	pub fn start(&mut self) {
+		log::info!("Starting the node");
 		self.start_node();
+		log::info!("Node started successfully");
 		let mut self_clone = self.clone();
-		spawn(async move {
+		tokio::spawn(async move {
 			self_clone.main_loop().await;
 		});
+		log::info!("Started main loop thread");
+
 		let mut self_clone = self.clone();
-		spawn(async move {
+		tokio::spawn(async move {
 			self_clone.heart_beat_thread().await;
 		});
+		log::info!("Started heart beat thread");
 	}
-	pub fn start_node(&mut self)  {
+	fn start_node(&mut self) {
 		// STARTS THE NODE, THE ENTRY POINT.
 		let app_state = Data::new(self.clone());
-		let server = HttpServer::new(move || {
+
+		// Setup server
+		let server = match HttpServer::new(move || {
 			App::new()
 				.app_data(app_state.clone())
 				.configure(config_routes)
 		})
-			.bind(format!("{}:{}", local_ip().unwrap(), self.config.listing_port)).unwrap().run();
+			.bind(format!("{}:{}", local_ip().expect("Unable to get local IP"), self.config.listing_port)) {
+			Ok(server) => { // Just run and return server
+				server.run()
+			}
+			Err(err) => {
+				// Log error and exit
+				log::error!("Unable to bind to IP: \"{}\". Maybe already in use?. Error: {}", format!("{}:{}", local_ip().expect("Unable to get local IP"), self.config.listing_port), err);
+				exit(0);
+			}
+		};
+		log::info!("Started node at: {}", format!("{}:{}", local_ip().expect("Unable to get local IP"), self.config.listing_port));
+
 		let handle = server.handle();
 		tokio::spawn(server);
 
@@ -87,35 +160,100 @@ impl Node {
 	}
 
 	pub async fn heart_beat_thread(&mut self) {
- 		let interval: Duration = Duration::from_millis(self.parameters.technical_parameters.slot_duration as u64); // THE INTERVAL
+		const SLOTS_PER_RE_SYNC: u32 = 128; // Every 128 slots the client will re-sync FIXME: Maybe change this value or choose a more appropriated one?
+
+		let ntp_client = AsyncSntpClient::new();
+
+		// Sync to slot
+		timing::sync_to_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await;
+
+		let interval: Duration = Duration::from_millis(self.parameters.technical_parameters.slot_duration as u64); // THE INTERVAL
 		let mut counter = 0;
 		loop {
 			let start = Instant::now();
-
-			let mut chain = self.blockchain.write().await;
-			let last_block = chain.get_last_block();
-			let node_keypair = PublicKeyAlgorithm::gen_keypair();
-			let block_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64;
-			let new_block = Block::new(last_block.header.height+1, vec!(), block_time, last_block.header.hash, &node_keypair.0, &node_keypair.1).unwrap();
-
-			if !chain.add_block(&new_block) {
-				panic!("Could not add block to chain. (Invalid)")
-			}
-			dbg!(block_time);
-			let msg = NewBlock {
-				version: self.version,
-				block: new_block,
-			};
-			self.broadcast_block(&msg).await;
-
 			// Do something
-			self.current_slot.fetch_add(1, Ordering::Release);
-			counter+=1;
+			let current_slot = self.current_slot.fetch_add(1, Ordering::Relaxed) + 1;
+
+			// FIXME: ADD THE HASH OF THE PREVIOUS EPOCH AS ENTRY IN THE VRF
+			let vrf_proving_key = VrfSk::from_bytes(&self.key_chain.vrf_key_pair.0).unwrap();
+			let active_slot_coeff = self.parameters.technical_parameters.active_slot_coefficient;
+
+			let node_stake = 1; // FIXME: Actually get the node stake
+			let total_staked = 2; // FIXME: Actually get the total stake
+
+			let lottery = Lottery::run_lottery(current_slot, active_slot_coeff, &[0u8; 32], &vrf_proving_key, node_stake, total_staked); // FIXME: Replace last_epoch_hash with actual last epoch hash
+
+			if let Some((random_number, proof)) = lottery {
+				log::info!("Lottery won!");
+				let start = Instant::now();
+				let mut chain = self.blockchain.write().await;
+
+				let prev_hash = chain.get_last_block().header.hash;
+
+				let mut transactions = Vec::new();
+
+				for tx in chain.mempool.iter() {
+					if size_of_val(&transactions) > self.parameters.network_parameters.max_block_body_size {
+						transactions.remove(transactions.len() - 1);
+						break;
+					} else {
+						transactions.push(tx.clone());
+					}
+				}
+
+				let new_block = Block::new(
+					chain.get_height(),
+					transactions,
+					current_slot,
+					prev_hash,
+					self.key_chain.wallet_key_pair.0,
+					self.key_chain.vrf_key_pair.1,
+					random_number,
+					&proof);
+				if chain.add_block(&new_block) {
+					let msg = NewBlock {
+						version: self.version,
+						block: new_block,
+					};
+					let peers = self.peers.read().await.clone();
+					log::info!("Took about {:?} to add to chain", start.elapsed());
+
+					log::info!("Started broadcasting block {}", msg.block.header.height);
+					tokio::spawn(async move {
+						Self::broadcast_block(&msg, &peers).await;
+						log::info!("Finished broadcasting block {}.", msg.block.header.height);
+					}).await.ok();
+				} else {
+					log::error!("New block created but could not add to blockchain")
+				}
+			}
+
+			if counter % 10 == 0 {
+				let chain = self.blockchain.read().await;
+				log::info!("Info: Height: {}", chain.get_height());
+			}
+
+			counter += 1;
 			if counter & 1 == 0 && self.is_shutdown() {
 				break;
 			}
-			spin_sleep::sleep(interval - start.elapsed());
+			if counter % SLOTS_PER_RE_SYNC == 0 {
+				timing::sync_to_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await; // Re-sync sleep
+				match timing::get_accurate_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await { // Re-set the slot
+					Ok(actual_current_slot) => {
+						self.current_slot.store(actual_current_slot, Ordering::Relaxed);
+					}
+					Err(err) => {
+						log::error!("Unable to synchronize with NTP server. Error: {}", err);
+					}
+				}
+			} else {
+				spin_sleep::sleep(interval - start.elapsed()); // Regular sleep
+			}
 		}
+	}
+	pub fn get_current_slot(&self) -> u64 {
+		self.current_slot.load(Ordering::Relaxed)
 	}
 
 	pub async fn main_loop(&mut self) {
@@ -144,13 +282,13 @@ impl Node {
 			// Check if peer list is full
 			if self.peers.read().await.len() < self.config.max_peers {
 				let mut self_copy = self.clone();
-				spawn(async move {self_copy.discover_peers().await;});
+				// spawn(async move {self_copy.discover_peers().await;}); // TODO: Enable this
 			}
 
 			if counter > REPLACE_PEER_TIME {
 				let mut self_copy = self.clone();
 				counter = 0;
-				spawn(async move { self_copy.cycle_peers().await; });
+				// spawn(async move { self_copy.cycle_peers().await; }); //TODO: Enable this
 			}
 
 			counter += 1;
@@ -199,7 +337,7 @@ impl Node {
 		// TODO
 	}
 	pub async fn shutdown(&mut self) {
-		self.shutdown.store(true, Ordering::Release);
+		self.shutdown.store(true, Ordering::Relaxed);
 		if let Some(handle) = &self.server_handle {
 			handle.stop(true).await;
 		}
@@ -209,11 +347,11 @@ impl Node {
 		block_in_place(|| self.shutdown.load(Ordering::Relaxed))
 	}
 	// Returns weather it was added or not
-	pub async fn new_transaction(&self, transaction: Transaction) -> bool{
+	pub async fn new_transaction(&self, transaction: Transaction) -> bool {
 		if self.blockchain.write().await.add_transaction_to_mempool(&transaction) {
 			let msg = NewTransaction {
 				version: self.version,
-				transaction
+				transaction,
 			};
 			let peers = self.peers.read().await.clone();
 			Self::broadcast_transaction(peers, &msg).await;
@@ -231,11 +369,9 @@ impl Node {
 		}).collect();
 
 		Self::broadcast_bytes(urls, tx).await;
-
 	}
-	pub async fn broadcast_block(&self, block: &NewBlock) {
+	pub async fn broadcast_block(block: &NewBlock, peers: &HashSet<Url>) {
 		// TODO: Implement gossip protocol instead of broadcasting everything to everyone
-		let peers = self.peers.read().await.clone();
 		let urls: HashSet<Url> = peers.iter().map(|url| {
 			let mut new_url = url.clone();
 			new_url.set_path(config::NEW_BLOCK_URL);
@@ -245,15 +381,19 @@ impl Node {
 		Self::broadcast_bytes(urls, block).await;
 	}
 	async fn broadcast_bytes<T>(urls: HashSet<Url>, msg: &T)
-	where T: Serialize + Send {
+		where T: Serialize + Send {
 		let mut handles = vec![];
 		let client = Client::new();
+
 		if let Ok(bytes) = standard_serialize(msg) {
+
 			for url in urls {
 				let bytes = bytes.clone();
+
+				let url = url.clone();
 				let client = client.clone();
-				handles.push(spawn( async move {
-					Sender::send_bytes(&client, url, bytes).await
+				handles.push(tokio::spawn(async move {
+					Sender::send_bytes(&client, url, bytes.clone()).await.ok();
 				}));
 			}
 		}

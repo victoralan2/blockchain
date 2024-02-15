@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use json::object;
 
 use crate::network::routes::p2p::URL_REGEX;
@@ -8,9 +9,9 @@ pub enum ErrorType {
 	InvalidBlock(String),
 	InvalidUrl,
 }
-impl ToString for ErrorType {
-	fn to_string(&self) -> String {
-		match self {
+impl Display for ErrorType {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let str = match self {
 			Self::WrongVersion(request_version, expected_version) => {
 				let json = object! {
 					error: "WrongVersion",
@@ -44,6 +45,7 @@ impl ToString for ErrorType {
 				};
 				json.to_string()
 			}
-		}
+		};
+		write!(f, "{}", str)
 	}
 }

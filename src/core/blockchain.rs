@@ -98,12 +98,13 @@ impl BlockChain {
 		self.chain.len()
 	}
 	pub fn get_last_block(&self) -> &Block {
-		self.chain.last().unwrap()
+		self.chain.last().expect("Chain is empty")
 	}
 
 	pub fn add_block(&mut self, new_block: &Block) -> bool {
-		if new_block.is_valid(self, self.get_height()) {
+		if new_block.is_valid(self) {
 			// Todo: some more checks and add block to blockchain
+			// Todo: Check if block has higher VRF and it does not diverge more than 3k/f
 			// Todo: build up the utxo set. PROBABLY DONE
 			for tx in &new_block.transactions {
 				self.mempool.retain(|t2| tx.eq(t2));

@@ -2,6 +2,7 @@ use actix_bincode::BincodeSerde;
 use actix_web::{HttpResponse, Responder, web};
 use actix_web::web::ServiceConfig;
 use bincode::{Decode, Encode};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 use crate::network::routes::{handshake, p2p, pull_based, push_based};
@@ -10,7 +11,7 @@ pub const VERSION_URL: &str = "/version";
 pub const GET_BLOCKCHAIN_INFO_URL: &str = "/get-blockchain-info";
 pub const NEW_TRANSACTION_URL: &str = "/tx";
 pub const NEW_BLOCK_URL: &str = "/block";
-pub const PAIR_UP_URL: &str = "/pair_up";
+pub const PAIR_UP_URL: &str = "/pair-up";
 pub const UNPAIR_URL: &str = "/unpair";
 pub const GET_PEERS_URL: &str = "/get-peers";
 pub const GET_BLOCKS_URL: &str = "/get-blocks";
@@ -43,6 +44,6 @@ pub struct TestBody {
 	pub(crate) test: String,
 }
 async fn test(msg: BincodeSerde<TestBody>) -> impl Responder {
-	println!("NEW REQUEST: {}", msg.test);
+	debug!("New request to /test: {}", msg.test);
 	HttpResponse::Ok().body("Ok")
 }

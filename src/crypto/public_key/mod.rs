@@ -17,16 +17,16 @@ impl PublicKeyAlgorithm {
 	pub fn gen_keypair() -> (Vec<u8>, Vec<u8>) {
 		let sk = SigningKey::random(&mut OsRng);
 		let vk = VerifyingKey::from(&sk);
-		(Self::serialize_vkey(&vk), Self::serialize_skey(&sk))
+		(Self::serialize_skey(&sk), Self::serialize_vkey(&vk))
 	}
 	pub fn sign(key: &[u8], data: &[u8]) -> Result<Vec<u8>, PublicKeyError> {
 		let mut sk = Self::skey_from_bytes(&key)?;
 		let signature: Signature = sk.sign(&[]);
 		Ok(signature.to_bytes().to_vec())
 	}
-	/**
-	Returns true if the signature matches, false otherwise. If the signature is not valid a error is returned
-	**/
+	///
+	/// Returns true if the signature matches, false otherwise. If the signature is not valid a error is returned
+	///
 	pub fn verify(key: &[u8], data: &[u8], signature: &[u8]) -> Result<(), PublicKeyError> {
 		let vk = Self::pkey_from_bytes(&key)?;
 		if let Ok(signature) = Signature::from_slice(signature) {

@@ -1,91 +1,57 @@
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 
 use base58::{FromBase58, FromBase58Error, ToBase58};
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::hash::hash;
+use crate::core::parameters::COIN_NAME_ABBREVIATION;
+use crate::crypto::hash::blake;
 use crate::crypto::public_key::PublicKeyAlgorithm;
 
-const SIGNATURE_BYTES: [u8; 2] = [0b0001000, 0b0001000];
+const ADDRESS_SIZE: usize = 16;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, Serialize, Deserialize, PartialEq)]
 pub struct P2PKHAddress {
-	pub address: [u8; 32]
+	pub address: [u8; ADDRESS_SIZE]
 }
 impl P2PKHAddress {
-	/*
-		Returns an address, a public and a private key: (P2PKHAddress, public_key, private_key)
-	 */
+	///
+	/// Returns an address, a public and a private key: (P2PKHAddress, private_key, public_key)
+	///
 	pub fn random() -> (Self, Vec<u8>, Vec<u8>) {
-		let keypair = PublicKeyAlgorithm::gen_keypair();
+		let (private_key, public_key) = PublicKeyAlgorithm::gen_keypair();
+		let address: &[u8; ADDRESS_SIZE] = &blake(&public_key)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten address");
+
 		let addr = P2PKHAddress {
-			address: hash(&keypair.0),
+			address: *address,
 		};
-		(addr, keypair.0, keypair.1)
+		(addr, private_key, public_key)
 	}
 	pub fn null() -> Self {
 		P2PKHAddress {
-			address: [0u8; 32],
+			address: [0u8; ADDRESS_SIZE],
 		}
 	}
-	pub fn from_string(string: String) -> Result<Self, FromBase58Error>{
+	pub fn from_string(mut string: String) -> Result<Self, FromBase58Error> {
+		if string.starts_with(&format!("{}:", COIN_NAME_ABBREVIATION)) {
+			string = string[COIN_NAME_ABBREVIATION.len() + 1..].to_string();
+		}
 		let bytes = string.from_base58()?;
-		let bytes = &bytes[2..];
-		let mut result = [0u8; 32];
-		result.copy_from_slice(bytes);
+		let mut result = [0u8; ADDRESS_SIZE];
+		result.copy_from_slice(&bytes);
 		Ok(P2PKHAddress {
 			address: result,
 		})
 	}
-	pub fn to_string(&self) -> String {
-		Self::hash_to_address(self.address).to_base58()
-	}
-	pub fn from(pk: Vec<u8>) -> Self {
+	pub fn from(pk: &[u8]) -> Self {
+		let address: &[u8; ADDRESS_SIZE] = &blake(pk)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten key");
 		P2PKHAddress {
-			address: hash(&pk),
+			address: *address,
 		}
 	}
-	pub fn hash_to_address(hash: [u8; 32]) -> [u8; 34]{
-		let mut signature_bytes = SIGNATURE_BYTES.to_vec();
-		signature_bytes.append(&mut hash.to_vec());
-		let mut result = [0u8; 34];
-		result.copy_from_slice(&signature_bytes);
-		result
+}
+impl Display for P2PKHAddress {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let str = self.address.to_base58();
+		write!(f, "{}:{}", COIN_NAME_ABBREVIATION, str)
 	}
 }
-// #[derive(Clone, PartialEq)]
-// pub struct Address {
-// 	pub public_key: PublicKey,
-// 	pub ADDRESS: String
-// }
-// impl Debug for Address {
-// 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-// 		let public_key_str = hex::encode(Dilithium::serialize_pkey(self.public_key));
-// 		let address_str = &self.ADDRESS;
-//
-// 		// Format the struct fields as a JSON object
-// 		write!(f, r#"{{ "public_key": "{}", "ADDRESS": "{}" }}"#, public_key_str, address_str)
-// 	}
-// }
-// impl Address {
-// 	pub fn random() -> (Self, SecretKey) {
-// 		let keypair = Dilithium::gen_dilithium();
-// 		let addr = Address {
-// 			public_key: keypair.0,
-// 			ADDRESS: hash(&Dilithium::serialize_pkey(keypair.0)).to_base58(),
-// 		};
-// 		(addr, keypair.1)
-// 	}
-// 	pub fn from(pk: PublicKey) -> Self {
-// 		Address {
-// 			public_key: pk,
-// 			ADDRESS: hash(&Dilithium::serialize_pkey(pk)).to_base58(),
-// 		}
-// 	}
-// 	pub fn null() -> Self {
-// 		Address {
-// 			public_key: Dilithium::pkey_from_bytes(&[0u8; 2592]).unwrap(),
-// 			ADDRESS: String::new(),
-// 		}
-// 	}
-// }

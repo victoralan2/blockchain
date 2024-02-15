@@ -63,7 +63,7 @@ impl Input {
 		if let Some(utxos) = blockchain.get_utxo_list(&self.prev_txid) {
 			if let Some(utxo) = utxos.get(self.output_index) {
 				if utxo.txid == self.prev_txid && utxo.output_index == self.output_index {
-					let derived_key = hash(&self.public_key);
+					let derived_key = P2PKHAddress::from(&self.public_key).address;
 					let is_address_correct = derived_key == utxo.recipient_address.address;
 					let is_signature_valid = self.verify_signature();
 					return is_address_correct && is_signature_valid;

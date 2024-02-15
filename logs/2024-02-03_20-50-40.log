@@ -1,0 +1,20 @@
+[2024-02-03_20-50-40 INFO src\network\node.rs blockchain::network::node] Starting the node
+[2024-02-03_20-50-40 INFO src\network\node.rs blockchain::network::node] Node started successfully
+[2024-02-03_20-50-40 INFO src\network\node.rs blockchain::network::node] Started main loop thread
+[2024-02-03_20-50-40 INFO src\network\node.rs blockchain::network::node] Started heart beat thread
+[2024-02-03_20-50-40 INFO src\network\node.rs blockchain::network::node] Info: Height: 1
+[2024-02-03_20-50-43 INFO src\network\node.rs blockchain::network::node] Info: Height: 1
+[2024-02-03_20-50-44 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-50-44 INFO src\network\node.rs blockchain::network::node] Took about 29.6µs to add to chain
+[2024-02-03_20-50-46 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-50-49 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-50-52 INFO src\network\node.rs blockchain::network::node] Info: Height: 2
+[2024-02-03_20-50-55 INFO src\network\node.rs blockchain::network::node] Lottery won!
+[2024-02-03_20-50-55 INFO src\network\node.rs blockchain::network::node] Took about 49.3µs to add to chain
+[2024-02-03_20-50-55 INFO src\network\node.rs blockchain::network::node] {Url { scheme: "http", cannot_be_a_base: false, username: "", password: None, host: Some(Domain("localhost")), port: Some(1234), path: "/block", query: None, fragment: None }}
+[2024-02-03_20-50-55 INFO src\network\node.rs blockchain::network::node] Sending bytes to http://localhost:1234/block
+[2024-02-03_20-50-55 INFO src\network\node.rs blockchain::network::node] Finished broadcasting
+[2024-02-03_20-50-56 INFO src\network\node.rs blockchain::network::node] Info: Height: 3
+[2024-02-03_20-50-58 INFO src\main.rs blockchain] Shutting down program...
+[2024-02-03_20-50-58 INFO src\main.rs blockchain] Program exited successfully
+[2024-02-03_20-50-59 INFO src\network\node.rs blockchain::network::node] Info: Height: 3

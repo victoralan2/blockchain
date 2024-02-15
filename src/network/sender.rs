@@ -2,10 +2,11 @@ use std::collections::HashSet;
 use std::error::Error;
 use std::io;
 use std::io::ErrorKind;
+use std::time::Duration;
 
 use reqwest::{Client, Response, StatusCode, Url};
 
-use crate::network::config;
+use crate::network::{config, standard};
 use crate::network::models::{BlockchainInfo, PairUp};
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
@@ -30,18 +31,33 @@ impl Sender {
 			}
 		}
 	}
-	pub async fn send_bytes(client: &Client, url: Url, bytes: Vec<u8>) -> reqwest::Result<Response> {
-		client.post(url)
+	pub async fn send_bytes(client: &Client, url: Url, bytes: Vec<u8>) -> Result<String, String> {
+		let send = client.post(url.clone())
 			.body(bytes)
-			.header(reqwest::header::CONTENT_TYPE, "application/octet-stream") // Set the content type
-			.send().await
+			.header(reqwest::header::CONTENT_TYPE, standard::DATA_TYPE) // Set the content type
+			.send();
+
+		if let Ok(result) = tokio::time::timeout(Duration::from_millis(500), send).await {
+			match result {
+				Ok(response) => {
+					let txt = String::from_utf8(response.bytes().await.unwrap().to_vec()).unwrap();
+					log::info!("Response: {:?}", txt);
+					Ok(txt)
+				}
+				Err(err) => {
+					Err(err.to_string())
+				}
+			}
+		} else {
+			Err("Timeout".to_string())
+		}
 	}
 	pub async fn pair_up_with(client: &Client, peer: Url, msg: PairUp) -> reqwest::Result<bool> {
 		let mut url = peer;
 		url.set_path(config::PAIR_UP_URL);
 		let response = client.post(url)
-			.body(standard_serialize(&msg).unwrap())
-			.header(reqwest::header::CONTENT_TYPE, "application/octet-stream") // Set the content type
+			.body(standard_serialize(&msg).expect("Unable to deserialize"))
+			.header(reqwest::header::CONTENT_TYPE, standard::DATA_TYPE) // Set the content type
 			.send().await?;
 		Ok(response.status() == StatusCode::OK)
 	}
@@ -49,7 +65,7 @@ impl Sender {
 		let mut url = peer;
 		url.set_path(config::GET_PEERS_URL);
 		let response = client.get(url)
-			.header(reqwest::header::CONTENT_TYPE, "application/octet-stream") // Set the content type
+			.header(reqwest::header::CONTENT_TYPE, standard::DATA_TYPE) // Set the content type
 			.send().await?;
 		match response.bytes().await.map(|x|x.to_vec()) {
 			Ok(data) => {

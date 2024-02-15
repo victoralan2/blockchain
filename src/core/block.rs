@@ -1,22 +1,29 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
+use crate::consensus::lottery::Lottery;
+use crate::core::address::P2PKHAddress;
 
 use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
 use crate::crypto::public_key::{PublicKeyAlgorithm, PublicKeyError};
+use crate::crypto::vrf::{VrfPk, VrfProof};
+use serde_big_array::BigArray;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
 	pub hash: [u8; 32],
 	pub height: usize,
 	pub previous_hash: [u8; 32],
-	pub time: u64,
+	pub slot: u64,
 	pub merkle_root: [u8; 32],
-	pub forger_signature: Vec<u8>,
-	pub forger_key: Vec<u8>,
+	pub vrf: [u8; 32],
+	#[serde(with = "BigArray")]
+	pub vrf_proof: [u8; 96],
+	pub forger_vrf_public_key: [u8; 32],
+	pub forger_address: P2PKHAddress,
 }
 pub type BlockContent = Vec<Transaction>;
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
@@ -26,22 +33,21 @@ pub struct Block {
 }
 
 impl Block {
-
-	pub fn new(height: usize, transactions: Vec<Transaction>, time: u64, previous_hash: [u8; 32], public_key:&[u8], private_key: &[u8]) -> Result<Self, PublicKeyError> {
+	pub fn new(height: usize, transactions: Vec<Transaction>, slot: u64, previous_hash: [u8; 32], reward_address: P2PKHAddress, forger_vrf_public_key: [u8; 32], vrf: [u8; 32], vrf_proof: &VrfProof) -> Self {
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			height,
 			previous_hash,
-			time,
+			slot,
 			merkle_root: [0u8; 32],
-			forger_signature: vec![],
-			forger_key: public_key.to_vec(),
+			vrf,
+			vrf_proof: vrf_proof.to_bytes(),
+			forger_vrf_public_key,
+			forger_address: reward_address,
 		};
 		let mut block = Block { header, transactions };
-
-		block.sign(private_key)?;
 		block.update_hash();
-		Ok(block)
+		block
 	}
 	pub fn genesis() -> Self {
 		const EXTRA_ENTROPY:  [u8; 32] = [60, 92, 162, 110, 82, 120, 10, 250, 102, 233, 226, 182, 114, 155, 80, 178, 35, 57, 107, 9, 122, 187, 253, 38, 160, 225, 171, 15, 110, 230, 47, 21];
@@ -49,10 +55,12 @@ impl Block {
 			hash: [0u8; 32],
 			height: 0,
 			previous_hash: EXTRA_ENTROPY,
-			time: 0u64,
+			slot: 0u64,
 			merkle_root: [0u8; 32],
-			forger_signature: vec![],
-			forger_key: vec![],
+			vrf: [0u8; 32],
+			vrf_proof: [0u8; 96],
+			forger_vrf_public_key: [0u8; 32],
+			forger_address: P2PKHAddress::null(),
 		};
 		let mut block = Block {
 			transactions: vec![],
@@ -61,18 +69,14 @@ impl Block {
 		block.update_hash();
 		block
 	}
-	pub fn sign(&mut self, private_key: &[u8]) -> Result<(), PublicKeyError>{
-		let hash = self.calculate_hash();
-		self.header.forger_signature = PublicKeyAlgorithm::sign(private_key, &hash)?;
-		Ok(())
-	}
-	pub fn verify_signature(&self) -> bool {
-		let hash = self.calculate_hash();
-		let signature =  &self.header.forger_signature;
-		if PublicKeyAlgorithm::verify(&self.header.forger_key, &hash, signature).is_ok() {
-			return true;
+	pub fn verify_vrf(&self, current_slot: u64, active_slot_coefficient: f32, last_epoch_hash: [u8; 32], node_stake: u64, total_staked: u64) -> bool {
+		let vrf =  self.header.vrf;
+		let vrf_proof =  self.header.vrf_proof;
+		if let Ok(vrf_pk) = VrfPk::from_bytes(&self.header.forger_vrf_public_key) {
+			Lottery::verify_vrf_lottery(current_slot, &last_epoch_hash, vrf, vrf_proof, &vrf_pk)
+		} else {
+			false
 		}
-		false
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
 
@@ -82,23 +86,20 @@ impl Block {
 		}
 		calculate_merkle_root(hashes)
 	}
-	pub fn is_valid(&self, blockchain: &BlockChain, height: usize) -> bool {
-		// TODO: CHECK IF TIMESTAMP IS ACCEPTABLE, CHECK: https://en.bitcoin.it/wiki/Block_timestamp
-		if let Some(previous) = blockchain.get_block_at(height - 1) {
-			let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
-			if !is_previous_hash_correct {
-				return false;
-			}
-		} else {
-			return false;
-		}
+	pub fn is_valid(&self, blockchain: &BlockChain, get_stake_of: &dyn Fn([u8; 32]) -> u64) -> BlockValidity {
+		let height = blockchain.get_height();
+
+		// TODO: VERIFY THE VRF
+
+
 		let is_hash_correct = self.calculate_hash() == self.header.hash;
-		let is_height_correct = self.header.height == blockchain.get_height();
 		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
+
 		// TODO: Check for leader validity
-		if !(is_merkle_tree_correct && is_hash_correct && is_height_correct) {
+		if !(is_merkle_tree_correct && is_hash_correct) {
 			return false;
 		}
+		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
 		let mut input_tx_list = HashSet::new();
 		for tx in &self.transactions {
 			// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
@@ -113,7 +114,44 @@ impl Block {
 				return false;
 			}
 		}
+
+
+		if self.header.height == blockchain.get_height() - 1 {
+			if let Some(previous_previous) = blockchain.get_block_at(height - 2) {
+				let is_previous_previous_hash_correct = self.header.previous_hash == previous_previous.header.hash;
+				if is_previous_previous_hash_correct {
+
+				}
+			}
+			return false;
+		}
+
+		if let Some(previous) = blockchain.get_block_at(height - 1) {
+			let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
+			if !is_previous_hash_correct {
+
+			}
+		} else {
+			return false;
+		}
+		let is_height_correct = self.header.height == blockchain.get_height();
+		if !is_height_correct {
+			return false
+		}
 		true
 	}
 }
 
+
+pub enum BlockValidity {
+	NotValid(InvalidityReason),  /// Meaning is not valid
+	MoreValidThanLastBlock, /// Meaning that it is better than the current last block of the blockchain and should REPLACE it
+	Valid,
+}
+pub enum InvalidityReason { // TODO
+	WrongContext, /// Last hash is different
+	InvalidHash,
+	InvalidVRF, /// The VRF was not valid
+	InvalidTransaction, /// There is some transaction that is not valid in the block
+	TooLarge,
+}

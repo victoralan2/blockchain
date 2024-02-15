@@ -2,8 +2,10 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use actix_web::{HttpRequest, HttpResponse, Responder, web};
+use log::error;
 use regex::Regex;
 use reqwest::Url;
+use crate::network::config::{PAIR_UP_URL, UNPAIR_URL};
 
 use crate::network::models::{HttpScheme, PairUp, SendPeers};
 use crate::network::models::http_errors::ErrorType;
@@ -38,7 +40,7 @@ pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp
 	};
 	if let Some(addr) = req.peer_addr() {
 		let url_string = format!("{}://{}:{}", scheme, addr.ip(), request_port);
-		let regex = Regex::new(URL_REGEX).unwrap();
+		let regex = Regex::new(URL_REGEX).expect("Unable to parse the URL_REGEX");
 		if regex.is_match(&url_string) { // TODO Do a check for size of peer list
 			if let Ok(url) = Url::from_str(&url_string) {
 				return if node.peers.read().await.len() < node.config.max_peers {
@@ -57,7 +59,7 @@ pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp
 			HttpResponse::BadRequest().body(ErrorType::InvalidUrl.to_string())
 		}
 	} else {
-		println!("Internal server err");
+		error!("There was an internal server error when trying to handle request at {}", PAIR_UP_URL);
 		HttpResponse::InternalServerError().finish()
 	}
 }
@@ -77,7 +79,7 @@ pub async fn handle_unpair(node: web::Data<Node>, msg: StandardExtractor<PairUp>
 
 	if let Some(addr) = req.peer_addr() {
 		let url_string = format!("{}://{}:{}", scheme, addr.ip(), request_port);
-		let regex = Regex::new(URL_REGEX).unwrap();
+		let regex = Regex::new(URL_REGEX).expect("Unable to parse the URL_REGEX");
 		if regex.is_match(&url_string) {
 			if let Ok(url) = Url::from_str(&url_string) {
 				let mut peers = node.peers.write().await;
@@ -100,7 +102,7 @@ pub async fn handle_unpair(node: web::Data<Node>, msg: StandardExtractor<PairUp>
 			HttpResponse::BadRequest().body(ErrorType::InvalidUrl.to_string())
 		}
 	} else {
-		println!("Internal server err");
+		error!("There was an internal server error when trying to handle request at {}", UNPAIR_URL);
 		HttpResponse::InternalServerError().finish()
 	}
 }

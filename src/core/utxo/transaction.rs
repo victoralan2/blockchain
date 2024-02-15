@@ -85,4 +85,7 @@ impl Transaction {
 		// TODO: CHECK FOR THE FEE OUTPUT OR SMT
 		self.is_valid_heuristic() && self.do_sum(blockchain) && self.validate_inputs(blockchain)
 	}
+	pub fn size(&self) -> usize {
+		0 // FIXME
+	}
 }
