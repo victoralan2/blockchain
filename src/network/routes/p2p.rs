@@ -5,8 +5,9 @@ use actix_web::{HttpRequest, HttpResponse, Responder, web};
 use log::error;
 use regex::Regex;
 use reqwest::Url;
-use crate::network::config::{PAIR_UP_URL, UNPAIR_URL};
+use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 
+use crate::network::config::{PAIR_UP_URL, UNPAIR_URL};
 use crate::network::models::{HttpScheme, PairUp, SendPeers};
 use crate::network::models::http_errors::ErrorType;
 use crate::network::node::Node;
@@ -17,7 +18,7 @@ pub const URL_REGEX: &str = r"(https?)://[0-9]{1,3}\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+\
 
 pub async fn handle_get_peers(node: web::Data<Node>) -> impl Responder {
 
-	let peers: HashSet<String> = node.peers.read().await.iter().map(|url|url.to_string()).collect();
+	let peers: HashSet<String> = node.peers.read().await.iter().map(|url|url.to_url().to_string()).collect();
 	if let Ok(msg) = standard::standard_serialize(&SendPeers {
 		peers,
 	}) {
@@ -44,10 +45,10 @@ pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp
 		if regex.is_match(&url_string) { // TODO Do a check for size of peer list
 			if let Ok(url) = Url::from_str(&url_string) {
 				return if node.peers.read().await.len() < node.config.max_peers {
-					if node.peers.read().await.iter().any(|x| x.host_str() == Some(&addr.to_string())) { // If the address is already peer
+					if node.peers.read().await.iter().any(|x| x.to_url().host_str() == Some(&addr.to_string())) { // If the address is already peer
 						HttpResponse::UnprocessableEntity().body("The given address is already a peer")
 					} else {
-						node.peers.write().await.insert(url);
+						node.peers.write().await.insert(PeerUrl::new(url));
 						HttpResponse::Ok().finish()
 					}
 				} else {
@@ -83,11 +84,11 @@ pub async fn handle_unpair(node: web::Data<Node>, msg: StandardExtractor<PairUp>
 		if regex.is_match(&url_string) {
 			if let Ok(url) = Url::from_str(&url_string) {
 				let mut peers = node.peers.write().await;
-				if peers.remove(&url) {
+				if peers.remove(&PeerUrl::new(url)) {
 					return HttpResponse::Ok().finish()
 				} else {
 					for p in peers.clone() {
-						if let Some(host) = p.host_str() {
+						if let Some(host) = p.to_url().host_str() {
 							if host == addr.to_string() {
 								peers.remove(&p);
 								return HttpResponse::Ok().finish()

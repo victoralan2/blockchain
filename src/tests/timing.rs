@@ -1,7 +1,9 @@
 use std::hint::black_box;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use rsntp::{AsyncSntpClient, SntpClient, SynchroniztationError};
+
+use rsntp::{AsyncSntpClient, SntpClient, SynchronizationError};
+
 use crate::network::node::{Node, STARTING_SLOT_SECOND};
 use crate::network::timing;
 use crate::network::timing::sync_to_slot;

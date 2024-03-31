@@ -1,6 +1,5 @@
 use crate::core::address::P2PKHAddress;
-use crate::crypto::public_key::PublicKeyAlgorithm;
-use crate::crypto::vrf::{keygen};
+use crate::crypto::vrf::keygen;
 
 #[derive(Clone)]
 pub struct NodeKeyChain {

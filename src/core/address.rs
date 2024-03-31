@@ -14,9 +14,7 @@ pub struct P2PKHAddress {
 	pub address: [u8; ADDRESS_SIZE]
 }
 impl P2PKHAddress {
-	///
 	/// Returns an address, a public and a private key: (P2PKHAddress, private_key, public_key)
-	///
 	pub fn random() -> (Self, Vec<u8>, Vec<u8>) {
 		let (private_key, public_key) = PublicKeyAlgorithm::gen_keypair();
 		let address: &[u8; ADDRESS_SIZE] = &blake(&public_key)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten address");

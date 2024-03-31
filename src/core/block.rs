@@ -1,16 +1,13 @@
-use std::collections::HashSet;
-
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
 use crate::consensus::lottery::Lottery;
 use crate::core::address::P2PKHAddress;
-
 use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
-use crate::crypto::public_key::{PublicKeyAlgorithm, PublicKeyError};
 use crate::crypto::vrf::{VrfPk, VrfProof};
-use serde_big_array::BigArray;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
@@ -50,7 +47,10 @@ impl Block {
 		block
 	}
 	pub fn genesis() -> Self {
+		
+		// TODO: Choose extra entropy better
 		const EXTRA_ENTROPY:  [u8; 32] = [60, 92, 162, 110, 82, 120, 10, 250, 102, 233, 226, 182, 114, 155, 80, 178, 35, 57, 107, 9, 122, 187, 253, 38, 160, 225, 171, 15, 110, 230, 47, 21];
+		
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			height: 0,
@@ -87,58 +87,63 @@ impl Block {
 		calculate_merkle_root(hashes)
 	}
 	pub fn is_valid(&self, blockchain: &BlockChain, get_stake_of: &dyn Fn([u8; 32]) -> u64) -> BlockValidity {
-		let height = blockchain.get_height();
-
-		// TODO: VERIFY THE VRF
-
-
-		let is_hash_correct = self.calculate_hash() == self.header.hash;
-		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
-
-		// TODO: Check for leader validity
-		if !(is_merkle_tree_correct && is_hash_correct) {
-			return false;
-		}
-		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
-		let mut input_tx_list = HashSet::new();
-		for tx in &self.transactions {
-			// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
-			for input in &tx.input_list {
-				if !input_tx_list.insert(input.calculate_hash()) {
-					return false;
-				}
-			}
-			let is_transaction_valid = tx.is_valid(blockchain);
-
-			if !(is_transaction_valid) {
-				return false;
-			}
-		}
-
-
-		if self.header.height == blockchain.get_height() - 1 {
-			if let Some(previous_previous) = blockchain.get_block_at(height - 2) {
-				let is_previous_previous_hash_correct = self.header.previous_hash == previous_previous.header.hash;
-				if is_previous_previous_hash_correct {
-
-				}
-			}
-			return false;
-		}
-
-		if let Some(previous) = blockchain.get_block_at(height - 1) {
-			let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
-			if !is_previous_hash_correct {
-
-			}
-		} else {
-			return false;
-		}
-		let is_height_correct = self.header.height == blockchain.get_height();
-		if !is_height_correct {
-			return false
-		}
-		true
+		// TODO
+		
+		todo!();
+		
+		
+		// let height = blockchain.get_height();
+		// 
+		// // TODO: VERIFY THE VRF
+		// 
+		// 
+		// let is_hash_correct = self.calculate_hash() == self.header.hash;
+		// let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
+		// 
+		// // TODO: Check for leader validity
+		// if !(is_merkle_tree_correct && is_hash_correct) {
+		// 	return false;
+		// }
+		// // TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
+		// let mut input_tx_list = HashSet::new();
+		// for tx in &self.transactions {
+		// 	// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
+		// 	for input in &tx.input_list {
+		// 		if !input_tx_list.insert(input.calculate_hash()) {
+		// 			return false;
+		// 		}
+		// 	}
+		// 	let is_transaction_valid = tx.is_valid(blockchain);
+		// 
+		// 	if !(is_transaction_valid) {
+		// 		return false;
+		// 	}
+		// }
+		// 
+		// 
+		// if self.header.height == blockchain.get_height() - 1 {
+		// 	if let Some(previous_previous) = blockchain.get_block_at(height - 2) {
+		// 		let is_previous_previous_hash_correct = self.header.previous_hash == previous_previous.header.hash;
+		// 		if is_previous_previous_hash_correct {
+		// 
+		// 		}
+		// 	}
+		// 	return false;
+		// }
+		// 
+		// if let Some(previous) = blockchain.get_block_at(height - 1) {
+		// 	let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
+		// 	if !is_previous_hash_correct {
+		// 
+		// 	}
+		// } else {
+		// 	return false;
+		// }
+		// let is_height_correct = self.header.height == blockchain.get_height();
+		// if !is_height_correct {
+		// 	return false
+		// }
+		// true
 	}
 }
 

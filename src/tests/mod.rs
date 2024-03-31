@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
-use log::info;
 
+use log::info;
 use reqwest::{Client, Url};
 use spin_sleep::sleep;
 
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
 use crate::network::models::HttpScheme;
-use crate::network::node::{Node, NodeConfig};
+use crate::network::node::{Node};
 use crate::network::sender::Sender;
 
 mod address;

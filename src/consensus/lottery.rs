@@ -1,6 +1,3 @@
-use std::arch::is_aarch64_feature_detected;
-use std::cmp::max;
-use num_bigint::BigUint;
 use crate::consensus::gen_difficulty;
 use crate::crypto::vrf::{prove, verify, VrfPk, VrfProof, VrfSk};
 

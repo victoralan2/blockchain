@@ -1,23 +1,13 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::BlockChain;
-use crate::core::parameters::Parameters;
 use crate::crypto::hash::hash;
 use crate::crypto::public_key::PublicKeyAlgorithm;
 
 pub mod transaction;
+mod reverse_transaction;
 
-pub struct UTXOSet;
-impl UTXOSet {
-	pub fn genesis(parameters: Parameters) -> HashMap<[u8; 32], Vec<UTXO>> {
-		let mut map = HashMap::new();
-		// TODO: Add genesis distribution in here
-		map
-	}
-}
 
 #[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Input {

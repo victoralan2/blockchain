@@ -1,12 +1,12 @@
+use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as g;
+use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek::scalar::Scalar;
 /// This file is a slightly edited copy of the ecvrf library.
 /// The original library can be found at https://github.com/Silur/ECVRF
 /// Credits to Silur, deuszex, HAOYUatHZ and Anfauglith for creating the library
 
-use rand_core::{OsRng};
+use rand_core::OsRng;
 use sha3::{Digest, Sha3_256 as SHA3, Sha3_512};
-use curve25519_dalek::scalar::Scalar;
-use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as g;
-use curve25519_dalek::ristretto::{RistrettoPoint, CompressedRistretto};
 
 fn sha3(b: Vec<u8>) -> [u8; 32] {
 	let mut hasher = SHA3::default();

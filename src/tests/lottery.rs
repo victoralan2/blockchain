@@ -1,4 +1,5 @@
 use std::hint::black_box;
+
 use crate::consensus::lottery::Lottery;
 use crate::crypto::vrf::keygen;
 

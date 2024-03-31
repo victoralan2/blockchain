@@ -61,7 +61,7 @@ impl Sender {
 			.send().await?;
 		Ok(response.status() == StatusCode::OK)
 	}
-	pub async fn get_peers(client: &Client, peer: Url) -> Result<HashSet<String>, Box<dyn Error>> {
+	pub async fn get_peers(client: &Client, peer: Url) -> anyhow::Result<HashSet<String>> {
 		let mut url = peer;
 		url.set_path(config::GET_PEERS_URL);
 		let response = client.get(url)
@@ -79,7 +79,7 @@ impl Sender {
 				}
 			}
 			Err(e) => {
-				Err(Box::new(e))
+				Err(e.into())
 			}
 		}
 	}

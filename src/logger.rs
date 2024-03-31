@@ -2,10 +2,10 @@ use std::env;
 use std::fmt::Display;
 use std::io::stdout;
 use std::time::SystemTime;
+
 use chrono::{DateTime, Local};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
-
 
 const LOGS_PATH: &str = "./logs/"; // TODO: Make this modifiable with command arguments
 
@@ -52,5 +52,21 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
 			.chain(stdout())
 		)
 		.apply()?;
+
+	// Hook panics to log them
+	std::panic::set_hook(Box::new(|panic_info| {
+		let panic_payload = panic_info.payload().downcast_ref::<String>();
+		let panic_location = if let Some(location) = panic_info.location() {
+			format!("{}:{}", location.file(), location.line().to_string())
+		} else {
+			"unknown".to_string()
+		};
+		let panic_message = match panic_payload {
+			Some(message) => message.clone(),
+			None => "unknown".to_string(),
+		};
+		log::error!("Application panicked: {} {}", panic_message, panic_location);
+	}));
+
 	Ok(())
 }

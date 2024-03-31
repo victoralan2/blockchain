@@ -1,4 +1,5 @@
 use ctor::ctor;
+
 use crate::logger::setup_logger;
 
 #[ctor]

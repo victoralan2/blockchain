@@ -1,7 +1,8 @@
 use std::time::Duration;
-use rsntp::{AsyncSntpClient, SynchroniztationError};
-use crate::network::node::STARTING_SLOT_SECOND;
 
+use rsntp::{AsyncSntpClient, SynchronizationError};
+
+use crate::network::node::STARTING_SLOT_SECOND;
 
 /// Syncs to the next slot
 pub async fn sync_to_slot(ntp_client: &AsyncSntpClient, slot_time_in_millis: u64) {
@@ -14,7 +15,7 @@ pub async fn sync_to_slot(ntp_client: &AsyncSntpClient, slot_time_in_millis: u64
 		.expect("Unable to sync with NTP server") * slot_time_in_millis as u32 / 1000).subsec_micros();
 	spin_sleep::sleep(Duration::from_micros(ONE_MICROSECOND - offset_in_micros as u64));
 }
-pub async fn get_accurate_slot(ntp_client: &AsyncSntpClient, slot_time_in_millis: u64) -> Result<u64, SynchroniztationError> {
+pub async fn get_accurate_slot(ntp_client: &AsyncSntpClient, slot_time_in_millis: u64) -> Result<u64, SynchronizationError> {
 	let slot_time = ntp_client.synchronize("time.google.com").await?
 		.datetime()
 		.unix_timestamp()

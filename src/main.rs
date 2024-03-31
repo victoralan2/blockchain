@@ -1,16 +1,21 @@
 use std::collections::HashSet;
 use std::fs::{File, read_to_string};
 use std::time::{Duration, Instant};
+
 use clap::Parser;
 use reqwest::Url;
 use rsntp::{AsyncSntpClient, Config, SntpClient};
+
 use crate::args::{Cli, Commands};
 use crate::core::parameters::Parameters;
+use crate::data_storage::node_config_storage::node_config::NodeConfig;
+use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::models::HttpScheme;
-use crate::network::node::{Node, NodeConfig};
+use crate::network::node::{Node};
 use crate::network::timing;
 use crate::network::timing::sync_to_slot;
 
+// TODO: Check that this is cool https://github.com/advisories/GHSA-r8w9-5wcg-vfj7
 pub mod crypto;
 pub mod core;
 pub mod network;
@@ -19,7 +24,7 @@ mod tests;
 mod logger;
 mod init;
 mod args;
-
+mod data_storage;
 
 
 // TODO: Use logger to log everything
@@ -35,7 +40,7 @@ async fn main() {
 					let lines = str.lines();
 					for line in lines {
 						if let Ok(url) = Url::parse(line) {
-							trusted_peers.insert(url);
+							trusted_peers.insert(PeerUrl::new(url));
 						} else {
 							log::error!("Unable to parse to URL string {:?} from trusted peers file", line);
 						}
