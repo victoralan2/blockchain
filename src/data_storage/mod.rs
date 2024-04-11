@@ -14,16 +14,36 @@ lazy_static! {
 	static ref BASE_DIRECTORY: Mutex<String> = {
 		Mutex::new(
 			if cfg!(target_os = "windows") {
-				format!("{}/{}/", dirs::config_dir().expect("Unable to get config directory").to_str().unwrap(), COIN_NAME.to_lowercase()) // AppData/Roaming/**
+				format!("{}/{}/", 
+					dirs::config_dir()
+					.expect("Unable to get config directory")
+					.to_str()
+					.unwrap(), 
+					uppercase_first_letter(&COIN_NAME
+						.to_lowercase()
+					)) // AppData/Roaming/**
 			} else if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
-				format!("{}/.{}/", dirs::home_dir().expect("Unable to get home directory").to_str().unwrap(), COIN_NAME.to_lowercase()) // /home/../.** ...
+								format!("{}/.{}/", 
+					dirs::home_dir()
+					.expect("Unable to get home directory")
+					.to_str()
+					.unwrap(), 
+					uppercase_first_letter(&COIN_NAME
+						.to_lowercase()
+					))
 			} else {
-				format!("{}/{}/", dirs::data_dir().expect("Unable to get data directory").to_str().unwrap(), COIN_NAME.to_lowercase())
+				format!("{}/{}/", 
+					dirs::data_dir()
+					.expect("Unable to get data directory")
+					.to_str()
+					.unwrap(), 
+					uppercase_first_letter(&COIN_NAME
+						.to_lowercase()
+					))
 			}
 		)
 	};
 }
-
 pub struct BaseDirectory;
 impl BaseDirectory {
 	pub fn get_base_directory() -> String {
@@ -34,5 +54,12 @@ impl BaseDirectory {
 	pub fn set_base_directory(new_basedir: &str) {
 		let mut mut_lock = BASE_DIRECTORY.lock().expect("Unable to acquire base directory mutable lock");
 		*mut_lock = new_basedir.to_string();
+	}
+}
+fn uppercase_first_letter(s: &str) -> String {
+	let mut c = s.chars();
+	match c.next() {
+		None => String::new(),
+		Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
 	}
 }

@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::fs::{create_dir_all, OpenOptions};
+use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::data_storage::BaseDirectory;
@@ -23,12 +25,22 @@ pub struct NodeConfig {
 
 impl NodeConfig {
 	/// If path is None, the default path will be used
-	pub fn load(path: Option<String>) -> anyhow::Result<Self> {
+	/// If the path or default path does not exist, a new file is created with the default settings
+	pub fn load(path: Option<String>) -> Self {
 		let default_path = format!("{}/node/config.json", BaseDirectory::get_base_directory());
 		let path = path.unwrap_or(default_path);
-		let data = std::fs::read_to_string(&path).expect(&format!("Unable to load data from given path: {}", path));
-		let _self = serde_json::from_str(&data)?;
-		Ok(_self)
+		if !Path::new(&path).exists() {
+			let config = NodeConfig::default();
+			create_dir_all(Path::new(&path).parent().expect("Unable to get parent directory")).expect("Unable to create directories");
+			let mut file = OpenOptions::new().create(true).write(true).open(&path).expect("Unable to open node config file");
+			let data = serde_json::to_string_pretty(&config).expect("Unable to serialize");
+			file.write_all(data.as_bytes()).expect("Unable to write to file");
+			config
+		} else {
+			let data = std::fs::read_to_string(&path).expect(&format!("Unable to load data from given path: {}", path));
+			serde_json::from_str(&data).expect("Unable to deserialize")
+		}
+
 	}
 }
 impl Default for NodeConfig {

@@ -40,7 +40,8 @@ impl UTXODB {
 		self.utxo_set.flush().expect("Unable to flush");
 	}
 	
-	/// Removes a output of the given txid and with the given index.
+	
+	/// Removes an output of the given txid and with the given index.
 	/// Indexes of all UTxOs will be checked instead of removing the nth one, this is because a previous index could have been removed before.
 	pub fn remove_utxo(&self, txid: &[u8; 32], index: usize) {
 		// TODO: Check that in one block there are not two transactions that use the same input (or the same input in the same transaction)

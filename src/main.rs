@@ -12,8 +12,6 @@ use crate::data_storage::node_config_storage::node_config::NodeConfig;
 use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::models::HttpScheme;
 use crate::network::node::{Node};
-use crate::network::timing;
-use crate::network::timing::sync_to_slot;
 
 // TODO: Check that this is cool https://github.com/advisories/GHSA-r8w9-5wcg-vfj7
 pub mod crypto;
@@ -49,14 +47,8 @@ async fn main() {
 					log::error!("Unable to load trusted peer file");
 				}
 			}
-			let config = NodeConfig {
-				listing_port: start_node.port,
-				http_scheme: HttpScheme::HTTP, // TODO: May change with command line arguments
-				max_peers: 0, // TODO: May change with command line arguments
-				peer_cycle_count: 0, // TODO: May change with command line arguments
-				trusted_peers
-			};
-			let mut node = Node::new(0, config, Parameters::default()).await;
+
+			let mut node = Node::new(0, None, Parameters::default()).await;
 			node.start();
 
 			tokio::signal::ctrl_c().await.unwrap();

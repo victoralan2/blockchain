@@ -7,6 +7,7 @@ use spin_sleep::sleep;
 
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
+use crate::data_storage::node_config_storage::node_config::NodeConfig;
 use crate::network::models::HttpScheme;
 use crate::network::node::{Node};
 use crate::network::sender::Sender;
@@ -14,21 +15,14 @@ use crate::network::sender::Sender;
 mod address;
 mod lottery;
 pub(crate) mod timing;
+mod data_sotrage;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn blockinfo_test() {
 	// env::set_var("RUST_BACKTRACE", "4");
-	let node_config = NodeConfig {
-		listing_port: 8000,
-		http_scheme: HttpScheme::HTTP,
-		max_peers: 128,
-		peer_cycle_count: 10,
-		trusted_peers: HashSet::from([]), // Url::parse("http://192.168.1.104:8000").expect("Unable to parse url")
-	};
 
 	let parameters = Parameters::default();
-	let start = Instant::now();
-	let mut node = Node::new(0, node_config, parameters).await;
+	let mut node = Node::new(0, None, parameters).await;
 	node.start();
 	let client = Client::new();
 	if let Ok(inf) = Sender::get_blockchain_info(&client, Url::parse("http://192.168.1.104:8000").expect("Unable to parse url")).await {

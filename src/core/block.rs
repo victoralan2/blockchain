@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
@@ -86,77 +87,78 @@ impl Block {
 		}
 		calculate_merkle_root(hashes)
 	}
-	pub fn is_valid(&self, blockchain: &BlockChain, get_stake_of: &dyn Fn([u8; 32]) -> u64) -> BlockValidity {
+	
+	/// Returns whether the block is correct and has no inconsistencies
+	pub fn is_correct(&self) -> bool {
+		let is_hash_correct = self.calculate_hash() == self.header.hash;
+		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
+		if !(is_merkle_tree_correct && is_hash_correct) {
+			return false;
+		}
+		let mut input_tx_list = HashSet::new();
+		for tx in &self.transactions {
+			// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
+			for input in &tx.input_list {
+				if !input_tx_list.insert(input.calculate_hash()) {
+					return false;
+				}
+			}
+			let is_transaction_valid = tx.is_valid_heuristic();
+
+			if !(is_transaction_valid) {
+				return false;
+			}
+		}
+		true
+	}
+	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
 		// TODO
 		
-		todo!();
+		let height = blockchain.get_height();
+		let is_block_correct = self.is_correct();
+		if !is_block_correct {
+			return false
+		}
 		
+		// TODO: VERIFY THE VRF
 		
-		// let height = blockchain.get_height();
-		// 
-		// // TODO: VERIFY THE VRF
-		// 
-		// 
-		// let is_hash_correct = self.calculate_hash() == self.header.hash;
-		// let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
-		// 
-		// // TODO: Check for leader validity
-		// if !(is_merkle_tree_correct && is_hash_correct) {
-		// 	return false;
-		// }
-		// // TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
-		// let mut input_tx_list = HashSet::new();
-		// for tx in &self.transactions {
-		// 	// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
-		// 	for input in &tx.input_list {
-		// 		if !input_tx_list.insert(input.calculate_hash()) {
-		// 			return false;
-		// 		}
-		// 	}
-		// 	let is_transaction_valid = tx.is_valid(blockchain);
-		// 
-		// 	if !(is_transaction_valid) {
-		// 		return false;
-		// 	}
-		// }
-		// 
-		// 
-		// if self.header.height == blockchain.get_height() - 1 {
-		// 	if let Some(previous_previous) = blockchain.get_block_at(height - 2) {
-		// 		let is_previous_previous_hash_correct = self.header.previous_hash == previous_previous.header.hash;
-		// 		if is_previous_previous_hash_correct {
-		// 
-		// 		}
-		// 	}
-		// 	return false;
-		// }
-		// 
-		// if let Some(previous) = blockchain.get_block_at(height - 1) {
-		// 	let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
-		// 	if !is_previous_hash_correct {
-		// 
-		// 	}
-		// } else {
-		// 	return false;
-		// }
-		// let is_height_correct = self.header.height == blockchain.get_height();
-		// if !is_height_correct {
-		// 	return false
-		// }
-		// true
+		// TODO: Check for leader validity
+
+		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
+		for tx in &self.transactions {
+			if !tx.is_valid(blockchain) {
+				return false
+			}
+		}
+		
+		if let Some(previous) = blockchain.get_block_at(height - 1) {
+			let is_previous_hash_correct = self.header.previous_hash == previous.header.hash;
+			if !is_previous_hash_correct {
+				return false;
+			}
+		} 
+		
+		let is_height_correct = self.header.height == blockchain.get_height();
+		if !is_height_correct {
+			return false
+		}
+		true
 	}
 }
-
-
 pub enum BlockValidity {
-	NotValid(InvalidityReason),  /// Meaning is not valid
-	MoreValidThanLastBlock, /// Meaning that it is better than the current last block of the blockchain and should REPLACE it
+	/// Meaning is not valid
+	NotValid, 
+	/// /// Meaning that it is better than the current last block of the blockchain and should REPLACE it
+	BetterThanLastBlock, 
 	Valid,
 }
 pub enum InvalidityReason { // TODO
-	WrongContext, /// Last hash is different
+	/// Last hash is different
+	WrongContext, 
 	InvalidHash,
-	InvalidVRF, /// The VRF was not valid
-	InvalidTransaction, /// There is some transaction that is not valid in the block
+	/// The VRF was not valid
+	InvalidVRF,
+	/// There is some transaction that is not valid in the block
+	InvalidTransaction, 
 	TooLarge,
 }

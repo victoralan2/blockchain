@@ -12,7 +12,7 @@ pub async fn handle_get_blockchain_info(node: web::Data<Node>) -> impl Responder
 		version: node.version,
 		height: chain.get_height(),
 		best_block_header: chain.get_last_block().header,
-		mempool_size: chain.mempool.len()
+		mempool_size: chain.mempool.get_map().len()
 	};
 	if let Ok(serialized) = standard_serialize(&info) {
 		HttpResponse::Ok().body(serialized)

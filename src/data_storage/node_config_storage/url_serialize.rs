@@ -38,6 +38,13 @@ impl<'de> Visitor<'de> for UrlVisitor {
 			Err(Error::custom("Unable to parse string to url"))
 		}
 	}
+	fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: Error {
+		if let Ok(url) = Url::from_str(v) {
+			Ok(PeerUrl(url))
+		} else {
+			Err(Error::custom("Unable to parse string to url"))
+		}
+	}
 }
 impl<'de> Deserialize<'de> for PeerUrl {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {

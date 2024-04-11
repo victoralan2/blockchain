@@ -73,13 +73,14 @@ impl Node {
 			parameters,
 		}
 	}
-	pub async fn new(version: u32, config: NodeConfig, parameters: Parameters) -> Self {
+	pub async fn new(version: u32, config_file: Option<String>,parameters: Parameters) -> Self {
 		let ntp_client = AsyncSntpClient::new();
 		let slot_time = ntp_client.synchronize("time.google.com").await
 			.expect("Unable to sync with NTP server")
 			.datetime()
 			.unix_timestamp()
 			.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
+		let config = NodeConfig::load(config_file);
 		let peers = config.trusted_peers.clone();
 		Self {
 			version,
@@ -201,7 +202,7 @@ impl Node {
 
 		let mut transactions = Vec::new();
 
-		for tx in chain.mempool.iter() {
+		for tx in chain.mempool.get_map() {
 			if size_of_val(&transactions) > self.parameters.network_parameters.max_block_body_size {
 				transactions.remove(transactions.len() - 1);
 				break;

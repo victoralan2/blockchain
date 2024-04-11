@@ -3,18 +3,26 @@ use std::collections::HashSet;
 use sled::Db;
 
 use crate::core::utxo::transaction::Transaction;
-use crate::network::standard::standard_serialize;
+use crate::network::standard::{standard_deserialize, standard_serialize};
 
+
+#[derive(Clone)]
 pub struct MempoolDB {
 	mempool: HashSet<Transaction>,
 	mempool_db: Db,
 }
 impl MempoolDB {
-	pub fn insert(&mut self, tx: Transaction) {
+	pub fn insert(&mut self, tx: &Transaction) -> bool {
 		let data = standard_serialize(&tx).expect("Unable to serialize tx");
-		self.mempool_db.insert(&tx.id, data).expect("TODO: panic message");
+		self.mempool.insert(tx.clone());
+		let replaced = self.mempool_db.insert(tx.id, data).expect("TODO: panic message").is_some();
 		self.mempool_db.flush().expect("Unable to flush mempool");
-		self.mempool.insert(tx);
+		replaced
+	}
+	pub fn remove(&mut self, tx: &Transaction) {
+		self.mempool.remove(tx);
+		self.mempool_db.remove(tx.id).unwrap();
+		self.mempool_db.flush().unwrap();
 	}
 	pub fn get_map(&self) -> &HashSet<Transaction> {
 		&self.mempool
@@ -26,7 +34,7 @@ impl Default for MempoolDB {
 		let txs: HashSet<Transaction> = db.iter().filter_map(|tx| {
 			match tx {
 				Ok((_, tx)) => {
-					if let Ok(tx) = serde_json::from_slice(&tx) {
+					if let Ok(tx) = standard_deserialize(&tx) {
 						Some(tx)
 					} else {
 						None

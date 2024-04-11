@@ -5,8 +5,8 @@ use actix_web::{HttpRequest, HttpResponse, Responder, web};
 use log::error;
 use regex::Regex;
 use reqwest::Url;
-use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 
+use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::config::{PAIR_UP_URL, UNPAIR_URL};
 use crate::network::models::{HttpScheme, PairUp, SendPeers};
 use crate::network::models::http_errors::ErrorType;

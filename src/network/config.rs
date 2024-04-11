@@ -2,7 +2,7 @@ use actix_bincode::BincodeSerde;
 use actix_web::{HttpResponse, Responder, web};
 use actix_web::web::ServiceConfig;
 use bincode::{Decode, Encode};
-use log::{debug, info};
+use log::{debug};
 use serde::{Deserialize, Serialize};
 
 use crate::network::routes::{handshake, p2p, pull_based, push_based};
