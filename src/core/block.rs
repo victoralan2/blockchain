@@ -105,7 +105,7 @@ impl Block {
 			}
 			let is_transaction_valid = tx.is_valid_heuristic();
 
-			if !(is_transaction_valid) {
+			if !is_transaction_valid {
 				return false;
 			}
 		}
