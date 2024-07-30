@@ -31,15 +31,15 @@ impl<'de> Visitor<'de> for UrlVisitor {
 		write!(formatter, "a url formatted string")
 	}
 
-	fn visit_string<E>(self, v: String) -> Result<Self::Value, E> where E: Error {
-		if let Ok(url) = Url::from_str(&v) {
+	fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: Error {
+		if let Ok(url) = Url::from_str(v) {
 			Ok(PeerUrl(url))
 		} else {
 			Err(Error::custom("Unable to parse string to url"))
 		}
 	}
-	fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: Error {
-		if let Ok(url) = Url::from_str(v) {
+	fn visit_string<E>(self, v: String) -> Result<Self::Value, E> where E: Error {
+		if let Ok(url) = Url::from_str(&v) {
 			Ok(PeerUrl(url))
 		} else {
 			Err(Error::custom("Unable to parse string to url"))

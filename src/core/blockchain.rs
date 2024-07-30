@@ -4,22 +4,22 @@ use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
 use crate::core::utxo::UTXO;
 use crate::data_storage::blockchain_storage::chain_database::ChainDB;
-use crate::data_storage::blockchain_storage::mempool_database::MempoolDB;
-use crate::data_storage::blockchain_storage::undo_items::{UndoBlock, UndoTransaction};
+use crate::data_storage::blockchain_storage::mempool_database::{Mempool};
 use crate::data_storage::blockchain_storage::utxo_database::UTXODB;
+use crate::data_storage::node_config_storage::node_config::NodeConfig;
 
 #[derive(Clone)]
 pub struct BlockChain {
 	chain: ChainDB,
 	pub utxo_set: UTXODB,
-	pub(crate) mempool: MempoolDB,
+	pub(crate) mempool: Mempool,
 	pub(crate) parameters: Parameters,
 }
 
 impl BlockChain {
-	pub fn init(parameters: Parameters) -> Self {
+	pub fn init(parameters: Parameters, config: &NodeConfig) -> Self {
 		let chain = ChainDB::default();
-		BlockChain { chain, utxo_set: UTXODB::genesis(parameters), mempool: Default::default(), parameters }
+		BlockChain { chain, utxo_set: UTXODB::genesis(parameters), mempool: Mempool::new(config.max_mempool_size_mb, parameters.network_parameters.max_tx_size), parameters }
 	}
 	pub fn get_utxo_list(&self, txid: &[u8; 32]) -> Option<Vec<UTXO>>{
 		self.utxo_set.get(txid)
@@ -27,10 +27,11 @@ impl BlockChain {
 	
 	/// Validates and adds the transaction to the memory pool if valid.
 	/// Returns whether the tx was added or not
-	pub fn add_transaction_to_mempool(&mut self, tx: &Transaction) -> bool{
+	pub fn add_transaction_to_mempool(&mut self, tx: &Transaction) -> bool {
 		let is_valid = tx.is_valid(self);
 		if is_valid {
-			self.mempool.insert(tx) && is_valid
+			let insert_result = self.mempool.insert(tx);
+			insert_result.is_ok_and(|b| b)
 		} else {
 			false
 		}
@@ -96,56 +97,56 @@ impl BlockChain {
 		self.chain.print_debug();
 	}
 	pub fn add_block(&mut self, new_block: &Block) -> bool {
-		if new_block.is_valid(self) { // TODO: In this line maybe test for the other cases too
-			// Todo: some more checks and add block to blockchain
-			// Todo: Check if block has higher VRF and it does not diverge more than 3k/f
-			// Todo: build up the utxo set. PROBABLY DONE
-
-			let mut undo_block = UndoBlock {
-				height: new_block.header.height,
-				original_hash: new_block.header.hash,
-				undo_transactions: vec![],
-			};
-			for tx in &new_block.transactions {
-
-				self.mempool.remove(tx);
-
-				let mut undo_transaction = UndoTransaction {
-					original_tx_id: tx.id,
-					removed_utxos: vec![],
-				};
-
-				for input in &tx.input_list {
-					if let Some(utxos) = self.utxo_set.get(&input.prev_txid) {
-						// This finds the utxo that the input was referring to
-						if let Some(&utxo) = utxos.iter().find(|utxo| utxo.output_index == input.output_index) {
-							undo_transaction.removed_utxos.push(utxo); // Add it to the undo transaction
-						}
-					}
-					// Remove the utxo from the UTXOset
-					self.utxo_set.remove_utxo(&input.prev_txid, input.output_index);
-				}
-				// Add the undo transaction to the undo block
-				undo_block.undo_transactions.push(undo_transaction);
-
-				let mut utxo_list = Vec::new();
-				for (i, output) in tx.output_list.iter().enumerate() {
-					let utxo = UTXO{
-						txid: tx.id,
-						output_index: i,
-						amount: output.amount,
-						recipient_address: output.address,
-					};
-					utxo_list.push(utxo);
-				}
-
-			}
-			// TODO: Add fees to the fee pool
-
-
-			self.chain.push_block_to_end(&new_block.clone(), &undo_block).expect("Unable to write block to database");
-			return true;
-		}
+		// if new_block.is_valid(self) { // TODO: In this line maybe test for the other cases too
+		// 	// Todo: some more checks and add block to blockchain
+		// 	// Todo: Check if block has higher VRF and it does not diverge more than 3k/f
+		// 	// Todo: build up the utxo set. PROBABLY DONE
+		// 
+		// 	let mut undo_block = UndoBlock {
+		// 		height: new_block.header.height,
+		// 		original_hash: new_block.header.hash,
+		// 		undo_transactions: vec![],
+		// 	};
+		// 	for tx in &new_block.transactions {
+		// 
+		// 		self.mempool.remove(tx);
+		// 
+		// 		let mut undo_transaction = UndoTransaction {
+		// 			original_tx_id: tx.id,
+		// 			removed_utxos: vec![],
+		// 		};
+		// 
+		// 		for input in &tx.input_list {
+		// 			if let Some(utxos) = self.utxo_set.get(&input.prev_txid) {
+		// 				// This finds the utxo that the input was referring to
+		// 				if let Some(&utxo) = utxos.iter().find(|utxo| utxo.output_index == input.output_index) {
+		// 					undo_transaction.removed_utxos.push(utxo); // Add it to the undo transaction
+		// 				}
+		// 			}
+		// 			// Remove the utxo from the UTXOset
+		// 			self.utxo_set.remove_utxo(&input.prev_txid, input.output_index);
+		// 		}
+		// 		// Add the undo transaction to the undo block
+		// 		undo_block.undo_transactions.push(undo_transaction);
+		// 
+		// 		let mut utxo_list = Vec::new();
+		// 		for (i, output) in tx.output_list.iter().enumerate() {
+		// 			let utxo = UTXO{
+		// 				txid: tx.id,
+		// 				output_index: i,
+		// 				amount: output.amount,
+		// 				recipient_address: output.address,
+		// 			};
+		// 			utxo_list.push(utxo);
+		// 		}
+		// 
+		// 	}
+		// 	// TODO: Add fees to the fee pool
+		// 
+		// 
+		// 	self.chain.push_block_to_end(&new_block.clone(), &undo_block).expect("Unable to write block to database");
+		// 	return true;
+		// }
 		false
 	}
 	pub fn is_block_valid(&self, block: &Block) -> bool {
@@ -182,19 +183,16 @@ impl BlockChain {
 		true
 		// TODO: NOW
 	}
-	pub fn undo_block(&mut self, block: &Block) -> bool {
-		if self.get_last_block().header.hash == block.header.hash {
-			if let Ok(Some(undo_block)) = self.chain.get_undo_block(&block.header.hash) {
-				let transactions = &block.transactions;
-				for t in transactions {
-					self.mempool.insert(t);
+	pub fn undo_block(&mut self, block_hash: &[u8; 32]) -> anyhow::Result<bool> {
+		if block_hash == &self.get_last_block().header.hash {
+			if let Some(undo_block) = self.chain.get_undo_block(block_hash)? {
+				self.chain.undo_block(block_hash)?;
+				for tx in undo_block.undo_transactions {
+					self.utxo_set.undo_transaction(&tx);
 				}
-				for undo_txs in undo_block.undo_transactions {
-					self.utxo_set.insert(&undo_txs.original_tx_id, undo_txs.removed_utxos);
-					self.utxo_set.remove(&undo_txs.original_tx_id);
-				}
+				return Ok(true)
 			}
 		}
-		false
+		Ok(false)
 	}
 }

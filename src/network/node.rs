@@ -1,5 +1,7 @@
+use std::cmp::min;
 use std::collections::HashSet;
 use std::mem::size_of_val;
+use std::ops::Deref;
 use std::process::{exit, ExitCode, ExitStatus};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -14,17 +16,16 @@ use rand::thread_rng;
 use reqwest::{Client, Url};
 use rsntp::{AsyncSntpClient, Config, SynchronizationError};
 use serde::Serialize;
-use tokio::runtime::Handle;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::block_in_place;
+use crate::consensus::miner::Miner;
 
-use crate::consensus::lottery::Lottery;
 use crate::core::block::Block;
 use crate::core::blockchain::BlockChain;
+use crate::core::Hashable;
 use crate::core::keys::NodeKeyChain;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
-use crate::crypto::vrf::{prove, VrfPk, VrfProof, VrfSk};
 use crate::data_storage::node_config_storage::node_config::NodeConfig;
 use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::{config, timing};
@@ -37,7 +38,6 @@ use crate::network::standard::standard_serialize;
 pub struct Node {
 	// TODO: Keys... and stuff
 	pub version: u32,
-	pub current_slot: Arc<AtomicU64>,
 	pub blockchain: Arc<RwLock<BlockChain>>,
 	pub peers: Arc<RwLock<HashSet<PeerUrl>>>,
 	// TODO: Implement gossip protocol instead of broadcasting everything to everyone
@@ -45,7 +45,9 @@ pub struct Node {
 	key_chain: NodeKeyChain,
 	pub server_handle: Option<ServerHandle>,
 	pub config: NodeConfig,
-	pub parameters: Parameters,
+	pub parameters: Parameters,  // TODO: Keep in mind that if something changes that is not Arc<> it will not be updated in the main loop
+	pub miner: Arc<Mutex<Miner>>,
+	pub should_mine: Arc<AtomicBool>
 }
 
 pub(crate) const STARTING_SLOT_SECOND: u64 = 0;
@@ -53,45 +55,53 @@ pub(crate) const STARTING_SLOT_SECOND: u64 = 0;
 // TODO: AT THE END CHANGE THIS NUMBER FOR THE EPOCH SECOND OF THE TIME THE CRYPTO IS RELEASED
 impl Node {
 	pub async fn default(version: u32) -> Self {
-		let ntp_client = AsyncSntpClient::new();
-		let slot_time = ntp_client.synchronize("time.google.com").await
-			.expect("Unable to sync with NTP server")
-			.datetime()
-			.unix_timestamp()
-			.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
+		// let ntp_client = AsyncSntpClient::new();
+		// let slot_time = ntp_client.synchronize("time.google.com").await
+		// 	.expect("Unable to sync with NTP server")
+		// 	.datetime()
+		// 	.unix_timestamp()
+		// 	.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
 		let parameters = Parameters::default();
-
+		let key_chain = NodeKeyChain::random();
+		let reward_address = key_chain.wallet_key_pair.0;
+		let config = NodeConfig::default();
 		Self {
 			version,
-			current_slot: Arc::new(AtomicU64::new(slot_time.as_millis() as u64 / parameters.technical_parameters.slot_duration as u64)),
-			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters))),
+			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters, &config))),
 			shutdown: Arc::new(AtomicBool::new(false)),
-			key_chain: NodeKeyChain::random(),
+			key_chain,
 			server_handle: None,
-			config: NodeConfig::default(),
+			config,
 			peers: Arc::new(Default::default()), // TODO: Load from default file
 			parameters,
+			miner: Arc::new(Mutex::new(Miner::new(vec![], 0, [0u8; 32], reward_address, [255u8; 32]))),
+			should_mine: Arc::new(AtomicBool::new(false)),
 		}
 	}
-	pub async fn new(version: u32, config_file: Option<String>,parameters: Parameters) -> Self {
-		let ntp_client = AsyncSntpClient::new();
-		let slot_time = ntp_client.synchronize("time.google.com").await
-			.expect("Unable to sync with NTP server")
-			.datetime()
-			.unix_timestamp()
-			.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
-		let config = NodeConfig::load(config_file);
+	pub async fn new(version: u32, config_file: Option<String>, parameters: Parameters) -> Self {
+		// let ntp_client = AsyncSntpClient::new();
+		// let slot_time = ntp_client.synchronize("time.google.com").await
+		// 	.expect("Unable to sync with NTP server")
+		// 	.datetime()
+		// 	.unix_timestamp()
+		// 	.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
+		// TODO: Store in some way the keychain
+		let config = NodeConfig::load_or_create(config_file);
 		let peers = config.trusted_peers.clone();
+
+		let key_chain = NodeKeyChain::random();
+		let reward_address = key_chain.wallet_key_pair.0;
 		Self {
 			version,
-			current_slot: Arc::new(AtomicU64::new(slot_time.as_millis() as u64 / parameters.technical_parameters.slot_duration as u64)),
-			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters))),
+			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters, &config))),
 			shutdown: Arc::new(AtomicBool::new(false)),
-			key_chain: NodeKeyChain::random(),
+			key_chain,
 			server_handle: None,
 			config,
 			peers: Arc::new(RwLock::new(peers)),
 			parameters,
+			miner: Arc::new(Mutex::new(Miner::new(vec![], 0, [0u8; 32], reward_address, [255u8; 32]))),
+			should_mine: Arc::new(AtomicBool::new(false)),
 		}
 	}
 	pub fn start(&mut self) {
@@ -102,13 +112,33 @@ impl Node {
 		tokio::spawn(async move {
 			self_clone.main_loop().await;
 		});
-		log::info!("Started main loop thread");
-
 		let mut self_clone = self.clone();
 		tokio::spawn(async move {
-			self_clone.heart_beat_thread().await;
+			// TODO: Give miner needed info
+			loop {
+				self_clone.update_miner().await;
+				let mined_block = Miner::start_mining(Arc::clone(&self_clone.miner), self_clone.should_mine.clone()).await;
+				log::info!("Block mined successfully!");
+				let mut chain = self_clone.blockchain.write().await;
+				if chain.add_block(&mined_block) {
+					let msg = NewBlock {
+						version: self_clone.version,
+						block: mined_block,
+					};
+					let peers = self_clone.peers.read().await.clone();
+
+					log::info!("Started broadcasting block {}", msg.block.header.height);
+					tokio::spawn(async move {
+						Self::broadcast_block(&msg, &peers).await;
+						log::info!("Finished broadcasting block {}.", msg.block.header.height);
+					}).await.ok();
+				} else {
+					log::error!("New block created but could not add to blockchain")
+				}
+			}
 		});
-		log::info!("Started heart beat thread");
+
+		log::info!("Started main loop thread");
 	}
 	fn start_node(&mut self) {
 		// STARTS THE NODE, THE ENTRY POINT.
@@ -138,61 +168,20 @@ impl Node {
 		self.server_handle = Some(handle);
 	}
 
-	pub async fn heart_beat_thread(&mut self) {
-		const SLOTS_PER_RE_SYNC: u32 = 128; // Every 128 slots the client will re-sync FIXME: Maybe change this value or choose a more appropriated one?
-
-		let ntp_client = AsyncSntpClient::new();
-
-		// Sync to slot
-		timing::sync_to_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await;
-
-		let interval: Duration = Duration::from_millis(self.parameters.technical_parameters.slot_duration as u64); // THE INTERVAL
-		let mut counter = 0;
-		loop {
-			let start = Instant::now();
-			// Do something
-			let current_slot = self.current_slot.fetch_add(1, Ordering::Relaxed) + 1; // Update and get the current block
-
-			// FIXME: ADD THE HASH OF THE PREVIOUS EPOCH AS ENTRY IN THE VRF
-			let vrf_proving_key = VrfSk::from_bytes(&self.key_chain.vrf_key_pair.0).unwrap();
-			let active_slot_coeff = self.parameters.technical_parameters.active_slot_coefficient;
-
-			let node_stake = 1; // FIXME: Actually get the node stake
-			let total_staked = 2; // FIXME: Actually get the total stake
-
-			let lottery = Lottery::run_lottery(current_slot, active_slot_coeff, &[0u8; 32], &vrf_proving_key, node_stake, total_staked); // FIXME: Replace last_epoch_hash with actual last epoch hash
-
-			if let Some((random_number, proof)) = lottery {
-				// LOTERY WON!!!
-				self.forge_new_block(current_slot, random_number, proof).await;
-			}
-
-			if counter % 10 == 0 {
-				let chain = self.blockchain.read().await;
-				log::info!("Info: Height: {}", chain.get_height());
-			}
-
-			counter += 1;
-			if counter & 1 == 0 && self.is_shutdown() {
-				break;
-			}
-			if counter % SLOTS_PER_RE_SYNC == 0 {
-				timing::sync_to_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await; // Re-sync sleep
-				match timing::get_accurate_slot(&ntp_client, self.parameters.technical_parameters.slot_duration as u64).await { // Re-set the slot
-					Ok(actual_current_slot) => {
-						self.current_slot.store(actual_current_slot, Ordering::Relaxed);
-					}
-					Err(err) => {
-						log::error!("Unable to synchronize with NTP server. Error: {}", err);
-					}
-				}
-			} else {
-				spin_sleep::sleep(interval - start.elapsed()); // Regular sleep
-			}
-		}
+	async fn update_miner(&mut self) {
+		let mut miner = self.miner.lock().await;
+		miner.reward_address = self.key_chain.wallet_key_pair.0;
+		let blockchain = self.blockchain.read().await;
+		miner.height = blockchain.get_height();
+		miner.last_hash = blockchain.get_last_block().header.hash;
+		
+		let max_tx_size = self.parameters.network_parameters.max_tx_size;
+		let max_block_body_size = self.parameters.network_parameters.max_block_body_size;
+		miner.transactions = blockchain.mempool.get_map().iter().take(max_block_body_size / max_tx_size).cloned().collect();
 	}
 	/// Forges a new block when the lottery is won
-	pub async fn forge_new_block(&mut self, current_slot: u64, random_number: [u8; 32], proof: VrfProof) {
+	pub async fn mine_new_block(&mut self) {
+		// todo!();
 		log::info!("Lottery won!");
 		
 		let start = Instant::now();
@@ -211,15 +200,14 @@ impl Node {
 			}
 		}
 
+		
 		let new_block = Block::new(
 			chain.get_height() + 1,
 			transactions,
-			current_slot,
 			prev_hash,
 			self.key_chain.wallet_key_pair.0,
-			self.key_chain.vrf_key_pair.1,
-			random_number,
-			&proof);
+			0
+		);
 		if chain.add_block(&new_block) {
 			let msg = NewBlock {
 				version: self.version,
@@ -237,10 +225,13 @@ impl Node {
 			log::error!("New block created but could not add to blockchain")
 		}
 	}
-	pub fn get_current_slot(&self) -> u64 {
-		self.current_slot.load(Ordering::Relaxed)
-	}
 
+	pub fn start_mining(&mut self) {
+		self.should_mine.store(true, Ordering::Relaxed);
+	}
+	pub fn stop_mining(&mut self) {
+		self.should_mine.store(false, Ordering::Relaxed);
+	}
 	pub async fn main_loop(&mut self) {
 		let mut counter = 0u32; // Counter to replace peers
 		const REPLACE_PEER_TIME: u32 = 10u32; // In seconds
@@ -280,9 +271,11 @@ impl Node {
 			tokio::time::sleep(Duration::from_secs(1)).await;
 		}
 	}
+	
 	pub async fn discover_peers(&mut self) {
 		// TODO
 	}
+	
 	async fn discover_n_peers(&self, n: u32) -> HashSet<PeerUrl> {
 		// TODO: Check that the peer discovered isn't already in peer list
 		// TODO: Check that if the peer list is empty, use seed peers
@@ -371,7 +364,6 @@ impl Node {
 		let client = Client::new();
 
 		if let Ok(bytes) = standard_serialize(msg) {
-
 			for url in urls {
 				let bytes = bytes.clone();
 

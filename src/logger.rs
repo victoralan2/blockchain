@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, fs};
 use std::fmt::Display;
 use std::io::stdout;
 use std::time::SystemTime;
@@ -11,6 +11,7 @@ const LOGS_PATH: &str = "./logs/"; // TODO: Make this modifiable with command ar
 
 
 pub fn setup_logger() -> Result<(), fern::InitError> {
+	fs::create_dir(LOGS_PATH).ok();
 	let colors_config = ColoredLevelConfig::new()
 		.error(Color::Red)
 		.warn(Color::Yellow)
@@ -21,7 +22,7 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
 	let file_timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
 	fern::Dispatch::new()
 		.level(LevelFilter::Debug)
-		.filter(|metadata| metadata.target().starts_with("blockchain"))
+		.filter(|metadata| metadata.target().starts_with("blockchain")) // TODO: CHANGE THIS IF THE NAME CHANGES
 		.chain(
 			fern::Dispatch::new()
 				.format(|out, message, record| {

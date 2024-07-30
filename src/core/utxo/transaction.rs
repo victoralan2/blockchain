@@ -10,7 +10,6 @@ use crate::crypto::public_key::{PublicKeyAlgorithm, PublicKeyError};
 #[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
 	pub id: [u8; 32],
-	pub extra_entropy: u16,
 	pub input_list: Vec<Input>,
 	pub output_list: Vec<Output>,
 }
@@ -19,7 +18,6 @@ impl Transaction {
 	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>, extra_entropy: u16) -> Self {
 		let mut s = Self {
 			id: [0u8; 32],
-			extra_entropy: 0,
 			input_list: vec![],
 			output_list: vec![],
 		};

@@ -3,6 +3,7 @@ use std::error::Error;
 use std::io;
 use std::io::ErrorKind;
 use std::time::Duration;
+use log::info;
 
 use reqwest::{Client, Response, StatusCode, Url};
 
@@ -41,7 +42,7 @@ impl Sender {
 			match result {
 				Ok(response) => {
 					let txt = String::from_utf8(response.bytes().await.unwrap().to_vec()).unwrap();
-					log::info!("Response: {:?}", txt);
+					info!("url: {}", url);
 					Ok(txt)
 				}
 				Err(err) => {

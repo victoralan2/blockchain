@@ -1,51 +1,33 @@
-use std::collections::HashSet;
-
-use sled::Db;
-
+use std::collections::{HashSet};
 use crate::core::utxo::transaction::Transaction;
-use crate::network::standard::{standard_deserialize, standard_serialize};
 
 
-#[derive(Clone)]
-pub struct MempoolDB {
-	mempool: HashSet<Transaction>,
-	mempool_db: Db,
+#[derive(Clone, Default)]
+pub struct Mempool {
+	pool: HashSet<Transaction>,
+	max_length: usize,
 }
-impl MempoolDB {
-	pub fn insert(&mut self, tx: &Transaction) -> bool {
-		let data = standard_serialize(&tx).expect("Unable to serialize tx");
-		self.mempool.insert(tx.clone());
-		let replaced = self.mempool_db.insert(tx.id, data).expect("TODO: panic message").is_some();
-		self.mempool_db.flush().expect("Unable to flush mempool");
-		replaced
+
+impl Mempool {
+	/// Creates a new mempool with a maximum size in Megabytes of max_size knowing that the max transaction size is max_transaction_size in bytes
+	pub fn new(max_size: usize, max_transaction_size: usize) -> Self {
+		const BYTES_IN_A_MEGABYTE: usize = 2516582400;
+		Self {
+			pool: Default::default(),
+			max_length: max_size * BYTES_IN_A_MEGABYTE / max_transaction_size,
+		}
+	}
+	pub fn insert(&mut self, tx: &Transaction) -> anyhow::Result<bool, &str> {
+		let length = self.pool.len();
+		if length >= self.max_length {
+			return Err("The mempool is already full");
+		}
+		Ok(self.pool.insert(tx.clone()))
 	}
 	pub fn remove(&mut self, tx: &Transaction) {
-		self.mempool.remove(tx);
-		self.mempool_db.remove(tx.id).unwrap();
-		self.mempool_db.flush().unwrap();
+		self.pool.remove(tx);
 	}
 	pub fn get_map(&self) -> &HashSet<Transaction> {
-		&self.mempool
-	}
-}
-impl Default for MempoolDB {
-	fn default() -> Self {
-		let db = sled::open("./blockchain/mempool-db").unwrap(); // FIXME: Change the file for the actual Db location
-		let txs: HashSet<Transaction> = db.iter().filter_map(|tx| {
-			match tx {
-				Ok((_, tx)) => {
-					if let Ok(tx) = standard_deserialize(&tx) {
-						Some(tx)
-					} else {
-						None
-					}
-				}
-				Err(_) => {None}
-			}
-		}).collect();
-		Self {
-			mempool: txs,
-			mempool_db: db,
-		}
+		&self.pool
 	}
 }

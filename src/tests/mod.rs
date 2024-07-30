@@ -16,6 +16,7 @@ mod address;
 mod lottery;
 pub(crate) mod timing;
 mod data_sotrage;
+mod miner;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn blockinfo_test() {

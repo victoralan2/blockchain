@@ -6,6 +6,7 @@ use sled::Db;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::UTXO;
 use crate::data_storage::BaseDirectory;
+use crate::data_storage::blockchain_storage::undo_items::UndoTransaction;
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
 #[derive(Clone)]
@@ -15,7 +16,7 @@ pub struct UTXODB {
 impl UTXODB {
 	pub fn genesis(parameters: Parameters) -> Self {
 		let utxo_directory = format!("{}/blockchain/utxo-set/", BaseDirectory::get_base_directory());
-		let mut utxo_set = sled::open(utxo_directory).expect("Unable to open / create utxo set");
+		let utxo_set = sled::open(utxo_directory).expect("Unable to open / create utxo set");
 		// TODO: Add genesis distribution in here
 		Self {
 			utxo_set,
@@ -39,7 +40,17 @@ impl UTXODB {
 		self.utxo_set.remove(txid).expect("Unable to remove TxID");
 		self.utxo_set.flush().expect("Unable to flush");
 	}
-	
+	pub fn undo_transaction(&self, undo_transaction: &UndoTransaction) {
+		self.remove(&undo_transaction.original_tx_id);
+		for (txid, utxo) in undo_transaction.removed_utxos.clone() {
+			if let Some(mut tx_data) = self.get(&txid) {
+				tx_data.insert(utxo.output_index, utxo);
+				self.insert(&txid, tx_data);
+			} else {
+				self.insert(&txid, vec![utxo])
+			}
+		}
+	}
 	
 	/// Removes an output of the given txid and with the given index.
 	/// Indexes of all UTxOs will be checked instead of removing the nth one, this is because a previous index could have been removed before.

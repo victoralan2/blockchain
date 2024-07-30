@@ -25,7 +25,7 @@ impl PublicKeyAlgorithm {
 		Ok(signature.to_bytes().to_vec())
 	}
 	///
-	/// Returns true if the signature matches, false otherwise. If the signature is not valid a error is returned
+	/// Returns true if the signature matches, false otherwise. If the signature is not valid an error is returned
 	///
 	pub fn verify(key: &[u8], data: &[u8], signature: &[u8]) -> Result<(), PublicKeyError> {
 		let vk = Self::pkey_from_bytes(&key)?;

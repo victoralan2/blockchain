@@ -3,15 +3,13 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
-
 use crate::data_storage::BaseDirectory;
+use crate::data_storage::node_config_storage::{CONFIG_FILE_NAME, NODE_DIRECTORY_NAME};
 use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::models::HttpScheme;
 
 const DEFAULT_PORT: u16 = 1379;
-
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
@@ -21,13 +19,13 @@ pub struct NodeConfig {
 	/// The amount of peers that will cycle each time
 	pub peer_cycle_count: usize,
 	pub trusted_peers: HashSet<PeerUrl>,
+	pub max_mempool_size_mb: usize,
 }
-
 impl NodeConfig {
 	/// If path is None, the default path will be used
 	/// If the path or default path does not exist, a new file is created with the default settings
-	pub fn load(path: Option<String>) -> Self {
-		let default_path = format!("{}/node/config.json", BaseDirectory::get_base_directory());
+	pub fn load_or_create(path: Option<String>) -> Self {
+		let default_path = format!("{}/{}/{}", BaseDirectory::get_base_directory(), NODE_DIRECTORY_NAME, CONFIG_FILE_NAME);
 		let path = path.unwrap_or(default_path);
 		if !Path::new(&path).exists() {
 			let config = NodeConfig::default();
@@ -51,6 +49,7 @@ impl Default for NodeConfig {
 			max_peers: 128,
 			peer_cycle_count: 8,
 			trusted_peers: Default::default(),
+			max_mempool_size_mb: 300, // 300 MB
 		}
 	}
 }

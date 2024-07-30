@@ -8,5 +8,6 @@ use crate::network::node::Node;
 #[tokio::test(flavor = "multi_thread")]
 async fn data_storage_test() {
 	let mut node = Node::new(1, None, Parameters::default()).await;
-	// Url::from_str("https://www.youtube.com").unwrap();
+	Node::default(1).await;
+	todo!();
 }

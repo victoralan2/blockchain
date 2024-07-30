@@ -2,26 +2,20 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-use crate::consensus::lottery::Lottery;
 use crate::core::address::P2PKHAddress;
 use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
-use crate::crypto::vrf::{VrfPk, VrfProof};
 
-#[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
 	pub hash: [u8; 32],
+	pub nonce: u64,
 	pub height: usize,
 	pub previous_hash: [u8; 32],
-	pub slot: u64,
 	pub merkle_root: [u8; 32],
-	pub vrf: [u8; 32],
-	#[serde(with = "BigArray")]
-	pub vrf_proof: [u8; 96],
-	pub forger_vrf_public_key: [u8; 32],
-	pub forger_address: P2PKHAddress,
+	pub miner_address: P2PKHAddress,
 }
 pub type BlockContent = Vec<Transaction>;
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
@@ -31,17 +25,14 @@ pub struct Block {
 }
 
 impl Block {
-	pub fn new(height: usize, transactions: Vec<Transaction>, slot: u64, previous_hash: [u8; 32], reward_address: P2PKHAddress, forger_vrf_public_key: [u8; 32], vrf: [u8; 32], vrf_proof: &VrfProof) -> Self {
+	pub fn new(height: usize, transactions: Vec<Transaction>, previous_hash: [u8; 32], reward_address: P2PKHAddress, nonce: u64) -> Self {
 		let header = BlockHeader {
 			hash: [0u8; 32],
+			nonce,
 			height,
 			previous_hash,
-			slot,
 			merkle_root: [0u8; 32],
-			vrf,
-			vrf_proof: vrf_proof.to_bytes(),
-			forger_vrf_public_key,
-			forger_address: reward_address,
+			miner_address: reward_address,
 		};
 		let mut block = Block { header, transactions };
 		block.update_hash();
@@ -54,14 +45,11 @@ impl Block {
 		
 		let header = BlockHeader {
 			hash: [0u8; 32],
+			nonce: 0,
 			height: 0,
 			previous_hash: EXTRA_ENTROPY,
-			slot: 0u64,
 			merkle_root: [0u8; 32],
-			vrf: [0u8; 32],
-			vrf_proof: [0u8; 96],
-			forger_vrf_public_key: [0u8; 32],
-			forger_address: P2PKHAddress::null(),
+			miner_address: P2PKHAddress::null(),
 		};
 		let mut block = Block {
 			transactions: vec![],
@@ -70,17 +58,10 @@ impl Block {
 		block.update_hash();
 		block
 	}
-	pub fn verify_vrf(&self, current_slot: u64, active_slot_coefficient: f32, last_epoch_hash: [u8; 32], node_stake: u64, total_staked: u64) -> bool {
-		let vrf =  self.header.vrf;
-		let vrf_proof =  self.header.vrf_proof;
-		if let Ok(vrf_pk) = VrfPk::from_bytes(&self.header.forger_vrf_public_key) {
-			Lottery::verify_vrf_lottery(current_slot, &last_epoch_hash, vrf, vrf_proof, &vrf_pk)
-		} else {
-			false
-		}
+	pub fn verify_proof_of_work(&self) -> bool {
+		todo!(); // TODO: USE
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
-
 		let mut hashes: Vec<[u8; 32]> = Vec::new();
 		for tx in &self.transactions {
 			hashes.push(tx.calculate_hash());

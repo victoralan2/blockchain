@@ -12,7 +12,6 @@ pub mod utxo;
 pub mod parameters;
 pub mod keys;
 
-
 pub trait Hashable {
 	fn calculate_hash(&self) -> [u8; 32];
 	fn update_hash(&mut self);
@@ -23,7 +22,7 @@ impl Hashable for Block {
 	fn calculate_hash(&self) -> [u8; 32]{
 		let header = &self.header;
 		let merkle_tree = self.calculate_merkle_tree();
-		let str = format!("{}.{}.{}.{}.{}.{}.{}.{}", hex::encode(header.previous_hash), hex::encode(merkle_tree), header.slot, header.height, hex::encode(header.vrf), hex::encode(header.vrf_proof), header.forger_address, hex::encode(header.forger_vrf_public_key));
+		let str = format!("{}.{}.{}.{}.{}", hex::encode(header.previous_hash), hex::encode(merkle_tree), header.nonce, header.height, header.miner_address);
 		hash(str.as_bytes()).as_slice().try_into().expect("Unable to convert hash to byte array")
 	}
 	fn update_hash(&mut self) {
@@ -42,7 +41,7 @@ impl Hashable for Transaction {
 		let output_hash_list = self.output_list.iter().map(|x|x.calculate_hash()).collect();
 		let outputs = hex::encode(calculate_merkle_root(output_hash_list));
 
-		let str = format!("{}.{}.{}", inputs, outputs, self.extra_entropy);
+		let str = format!("{}.{}", inputs, outputs);
 		hash(str.as_bytes())
 	}
 	fn update_hash(&mut self) {
