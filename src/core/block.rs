@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
 use crate::core::address::P2PKHAddress;
-use crate::core::blockchain::BlockChain;
 use crate::core::Hashable;
 use crate::core::utxo::transaction::Transaction;
 use crate::crypto::hash::merkle::calculate_merkle_root;
+
+
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Debug)]
 pub struct BlockHeader {
@@ -17,6 +17,18 @@ pub struct BlockHeader {
 	pub merkle_root: [u8; 32],
 	pub miner_address: P2PKHAddress,
 }
+
+impl BlockHeader {
+	pub fn is_genesis(&self) -> bool {
+		self.previous_hash == Block::INITIAL_ENTROPY
+	}
+}
+
+impl BlockHeader {
+	pub fn verify_proof_of_work(&self) -> bool {
+		todo!(); // TODO: USE
+	}
+}
 pub type BlockContent = Vec<Transaction>;
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct Block {
@@ -25,6 +37,14 @@ pub struct Block {
 }
 
 impl Block {
+	const INITIAL_ENTROPY:  [u8; 32] = [60, 92, 162, 110, 82, 120, 10, 250, 102, 233, 226, 182, 114, 155, 80, 178, 35, 57, 107, 9, 122, 187, 253, 38, 160, 225, 171, 15, 110, 230, 47, 21];
+	
+	pub fn new_raw(header: BlockHeader, transactions: BlockContent) -> Self {
+		Self {
+			header,
+			transactions,
+		}
+	}
 	pub fn new(height: usize, transactions: Vec<Transaction>, previous_hash: [u8; 32], reward_address: P2PKHAddress, nonce: u64) -> Self {
 		let header = BlockHeader {
 			hash: [0u8; 32],
@@ -41,13 +61,12 @@ impl Block {
 	pub fn genesis() -> Self {
 		
 		// TODO: Choose extra entropy better
-		const EXTRA_ENTROPY:  [u8; 32] = [60, 92, 162, 110, 82, 120, 10, 250, 102, 233, 226, 182, 114, 155, 80, 178, 35, 57, 107, 9, 122, 187, 253, 38, 160, 225, 171, 15, 110, 230, 47, 21];
 		
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			nonce: 0,
 			height: 0,
-			previous_hash: EXTRA_ENTROPY,
+			previous_hash: Self::INITIAL_ENTROPY,
 			merkle_root: [0u8; 32],
 			miner_address: P2PKHAddress::null(),
 		};
@@ -57,9 +76,6 @@ impl Block {
 		};
 		block.update_hash();
 		block
-	}
-	pub fn verify_proof_of_work(&self) -> bool {
-		todo!(); // TODO: USE
 	}
 	pub fn calculate_merkle_tree(&self) -> [u8; 32]{
 		let mut hashes: Vec<[u8; 32]> = Vec::new();
@@ -91,6 +107,9 @@ impl Block {
 			}
 		}
 		true
+	}
+	pub fn is_genesis(&self) -> bool {
+		self.header.is_genesis()
 	}
 }
 pub enum BlockValidity {

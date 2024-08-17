@@ -12,7 +12,6 @@ use crate::core::Hashable;
 use crate::data_storage::BaseDirectory;
 use crate::data_storage::blockchain_storage::{BLOCKCHAIN_DIRECTORY_NAME, CHAIN_DIRECTORY_NAME, INDEX_DIRECTORY_NAME, METADATA_FILE_NAME, UNDO_DIRECTORY_NAME, UNDO_INDEX_DIRECTORY_NAME};
 use crate::data_storage::blockchain_storage::undo_items::{UndoBlock};
-use crate::network::models::InvDataType::Block;
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -144,20 +143,26 @@ impl ChainDB {
 					.ok()
 			})
 	}
+
 	pub fn get_block_by_height(&self, height: usize) -> Option<Block> {
-		let hash = self.index_to_hash_db.get(height.to_be_bytes()).ok()??;
+		let hash = self.get_block_hash_by_height(height)?;
 		let block = standard_deserialize(&self.chain_db.get(hash).ok()??).ok()?; // This gets the block based on the key (the hash) and serializes it (yeah, there is a lot of "?")
 		block
+	}
+	pub fn get_block_hash_by_height(&self, height: usize) -> Option<[u8; 32]> { // TODO: Check if this function works (specially the line where the hash is converted to a [u8; 32])
+		let hash = self.index_to_hash_db.get(height.to_be_bytes()).ok()??;
+		let hash = hash.to_vec().try_into().ok()?;
+		Some(hash)
 	}
 	fn is_empty(&self) -> bool {
 		self.chain_db.is_empty() || self.index_to_hash_db.is_empty()
 	}
 	
+	/// The length, in other words, the height of the last block + 1
 	pub fn get_length(&self) -> usize {
 		self.chain_metadata.length
 	}
 	
-
 	pub fn flush(&mut self) -> sled::Result<()> {
 		self.chain_db.flush()?;
 		self.index_to_hash_db.flush()?;

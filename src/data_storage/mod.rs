@@ -1,7 +1,5 @@
-use std::convert::Into;
-use std::env;
 use std::string::ToString;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use lazy_static::lazy_static;
 
@@ -47,12 +45,12 @@ lazy_static! {
 pub struct BaseDirectory;
 impl BaseDirectory {
 	pub fn get_base_directory() -> String {
-		let lock = BASE_DIRECTORY.lock().expect("Unable to acquire base directory lock");
+		let lock = BASE_DIRECTORY.lock().await;
 		lock.clone()
 	}
 
 	pub fn set_base_directory(new_basedir: &str) {
-		let mut mut_lock = BASE_DIRECTORY.lock().expect("Unable to acquire base directory mutable lock");
+		let mut mut_lock = BASE_DIRECTORY.lock().await;
 		*mut_lock = new_basedir.to_string();
 	}
 }

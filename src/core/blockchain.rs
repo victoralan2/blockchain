@@ -36,17 +36,20 @@ impl BlockChain {
 			false
 		}
 	}
-	pub fn get_context(&self) -> String {
+	pub fn get_context(&self) -> String { // TODO: If this function is still usefull, make it return a struct not a string
 		let last_block_hash = self.get_last_block().header.hash;
 		hex::encode(last_block_hash) // TODO: Maybe add some more context
 	}
 	pub fn get_block_at(&self, height: usize) -> Option<Block> {
 		self.chain.get_block_by_height(height)
 	}
-	pub fn get_block_by(&self, hash: [u8; 32]) -> Option<&Block> {
-		todo!()
+	pub fn get_block_hash_at(&self, height: usize) -> Option<[u8; 32]> {
+		self.chain.get_block_hash_by_height(height)
 	}
-
+	pub fn get_block_by(&self, hash: [u8; 32]) -> Option<Block> {
+		self.chain.get_block(hash)
+	}
+	
 	fn get_last_common_block(&self, others: &Vec<[u8; 32]>) -> Option<Block> {
 		for &other in others.iter() {
 			if let Some(block) = self.chain.get_block(other) {
@@ -55,7 +58,7 @@ impl BlockChain {
 		}
 		None
 	}
-	pub fn get_blocks(&self, others: &Vec<[u8; 32]>) -> Vec<[u8; 32]> {
+	pub fn get_blocks(&self, others: &Vec<[u8; 32]>) -> Option<Vec<[u8; 32]>> {
 		if let Some(last_common) = self.get_last_common_block(others) {
 			let height = last_common.header.height;
 			let mut result = vec![];
@@ -67,15 +70,19 @@ impl BlockChain {
 					break
 				}
 			}
-			return result;
+			return Some(result);
 		}
-		vec![]
+		None
 	}
-	pub fn get_headers(&self, others: &Vec<[u8; 32]>) -> Vec<BlockHeader> {
+	
+	/// Returns the headers continuing from the last common headers (Up to **MAX_HEADERS**).
+	/// It also returns true if all headers have benn returned or false if **MAX_HEADERS** has been reached 
+	/// The first block in the vector should be the last common block
+	pub fn get_headers(&self, others: &Vec<[u8; 32]>) -> Option<(Vec<BlockHeader>, bool)> {
 		if let Some(last_common) = self.get_last_common_block(others){
 			let height = last_common.header.height;
 			let mut result = vec![];
-			const MAX_HEADERS: usize = 2048;
+			const MAX_HEADERS: usize = 1024;
 			for i in 0..MAX_HEADERS {
 				if let Some(block) = self.chain.get_block_by_height(height + i) {
 					result.push(block.header);
@@ -83,10 +90,12 @@ impl BlockChain {
 					break
 				}
 			}
-			return result;
+
+			return Some((result, self.get_height() < height + MAX_HEADERS));
 		}
-		vec![]
+		None
 	}
+	/// The height of the last block
 	pub fn get_height(&self) -> usize {
 		self.chain.get_length() - 1
 	}
@@ -97,6 +106,7 @@ impl BlockChain {
 		self.chain.print_debug();
 	}
 	pub fn add_block(&mut self, new_block: &Block) -> bool {
+		// TODO: Add a reward to the miner
 		// if new_block.is_valid(self) { // TODO: In this line maybe test for the other cases too
 		// 	// Todo: some more checks and add block to blockchain
 		// 	// Todo: Check if block has higher VRF and it does not diverge more than 3k/f
@@ -141,7 +151,7 @@ impl BlockChain {
 		// 		}
 		// 
 		// 	}
-		// 	// TODO: Add fees to the fee pool
+		// 	// TODO: Add the
 		// 
 		// 
 		// 	self.chain.push_block_to_end(&new_block.clone(), &undo_block).expect("Unable to write block to database");
@@ -158,9 +168,8 @@ impl BlockChain {
 			return false
 		}
 
-		// TODO: VERIFY THE VRF
-
-		// TODO: Check for leader validity
+		// TODO: Verify PoW
+		
 
 		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
 		for tx in &block.transactions {
@@ -194,5 +203,23 @@ impl BlockChain {
 			}
 		}
 		Ok(false)
+	}
+	
+	/// Undoes the blockchain until block_hash (exclusive) is the best block, returns all the blocks that have been undone
+	/// Returns None if block_hash does not exist
+	pub fn undo_until(&mut self, block_hash: [u8; 32]) -> Option<Vec<Block>> {
+		if self.get_block_by(block_hash).is_none() {
+			return None;
+		}
+
+		// TODO: Maybe add a limit to this function as it is very very memory expensive, (it holds all blocks in memory) (maybe optimize in some way??)
+		let mut undone_blocks = vec![];
+		let mut last_block = self.get_last_block();
+		while last_block.header.hash != block_hash {
+			let _ = self.undo_block(&self.get_last_block().header.hash).expect("Unable to undo block");
+			undone_blocks.push(last_block);
+			last_block = self.get_last_block();
+		}
+		Some(undone_blocks)
 	}
 }

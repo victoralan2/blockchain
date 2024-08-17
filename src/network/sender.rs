@@ -8,7 +8,7 @@ use log::info;
 use reqwest::{Client, Response, StatusCode, Url};
 
 use crate::network::{config, standard};
-use crate::network::models::{BlockchainInfo, PairUp};
+use crate::network::models::{BlockchainInfo, BlocksData, GetBlocks, GetData, GetHeaders, Headers, Inv, PairUp};
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
 pub struct Sender;
@@ -71,6 +71,55 @@ impl Sender {
 		match response.bytes().await.map(|x|x.to_vec()) {
 			Ok(data) => {
 				match standard_deserialize::<HashSet<String>>(data.as_slice()) {
+					Ok(info) => {
+						Ok(info)
+					}
+					Err(e) => {
+						Err(e)
+					}
+				}
+			}
+			Err(e) => {
+				Err(e.into())
+			}
+		}
+	}
+
+	// TODO: Test this function
+	pub async fn get_headers(client: &Client, peer: Url, get_headers: &GetHeaders) -> anyhow::Result<Headers> {
+		let mut url = peer;
+		url.set_path(config::GET_HEADERS_URL);
+		let response = client.get(url)
+			.body(standard_serialize(get_headers)?)
+			.header(reqwest::header::CONTENT_TYPE, standard::DATA_TYPE) // Set the content type
+			.send().await?;
+		match response.bytes().await.map(|x|x.to_vec()) {
+			Ok(data) => {
+				match standard_deserialize(data.as_slice()) {
+					Ok(info) => {
+						Ok(info)
+					}
+					Err(e) => {
+						Err(e)
+					}
+				}
+			}
+			Err(e) => {
+				Err(e.into())
+			}
+		}
+	}
+	pub async fn get_block_data(client: &Client, peer: Url, get_headers: &GetData) -> anyhow::Result<BlocksData> {
+		let mut url = peer;
+		url.set_path(config::GET_DATA_URL);
+		let response = client.get(url)
+			.body(standard_serialize(get_headers)?)
+			.header(reqwest::header::CONTENT_TYPE, standard::DATA_TYPE) // Set the content type
+			.send().await?;
+
+		match response.bytes().await.map(|x|x.to_vec()) {
+			Ok(data) => {
+				match standard_deserialize(data.as_slice()) {
 					Ok(info) => {
 						Ok(info)
 					}

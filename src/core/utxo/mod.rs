@@ -39,7 +39,7 @@ impl Input {
 		hash(str.as_bytes())
 	}
 	pub fn verify_signature(&self) -> bool {
-		// TODO: Check code
+		// TODO: Test code
 		let hash = self.calculate_hash();
 		let signature =  &self.signature;
 		if PublicKeyAlgorithm::verify(&self.public_key, &hash, signature).is_ok() {
@@ -49,8 +49,10 @@ impl Input {
 	}
 	pub fn validate(&self, blockchain: &BlockChain) -> bool {
 		if let Some(utxos) = blockchain.get_utxo_list(&self.prev_txid) {
-			if let Some(utxo) = utxos.get(self.output_index) {
-				if utxo.txid == self.prev_txid && utxo.output_index == self.output_index {
+			for utxo in utxos {
+				if utxo.output_index == self.output_index 
+					&& utxo.txid == self.prev_txid 
+				{
 					let derived_key = P2PKHAddress::from(&self.public_key).address;
 					let is_address_correct = derived_key == utxo.recipient_address.address;
 					let is_signature_valid = self.verify_signature();

@@ -30,7 +30,7 @@ use crate::data_storage::node_config_storage::node_config::NodeConfig;
 use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
 use crate::network::{config, timing};
 use crate::network::config::config_routes;
-use crate::network::models::{HttpScheme, NewBlock, NewTransaction};
+use crate::network::models::{BlocksData, GetBlocks, GetData, GetHeaders, Headers, HttpScheme, InvDataType, NewBlock, NewTransaction};
 use crate::network::sender::Sender;
 use crate::network::standard::standard_serialize;
 
@@ -377,5 +377,19 @@ impl Node {
 		for h in handles {
 			h.await.ok();
 		}
+	}
+
+	pub async fn get_headers(&self, peer_url: &PeerUrl, client: &Client, block_locator_object: Vec<[u8; 32]>) -> anyhow::Result<Headers> {
+		Sender::get_headers(client, peer_url.to_url(), &GetHeaders {
+			version: self.version,
+			block_locator_object,
+		}).await
+	}
+	pub async fn get_blocks_data(&self, peer_url: &PeerUrl, client: &Client, hashes: Vec<[u8; 32]>) -> anyhow::Result<BlocksData> {
+		Sender::get_block_data(client, peer_url.to_url(), &GetData {
+			version: self.version,
+			data_type: InvDataType::Block,
+			hashes,
+		}).await
 	}
 }

@@ -15,11 +15,11 @@ pub struct Transaction {
 }
 
 impl Transaction {
-	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>, extra_entropy: u16) -> Self {
+	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>) -> Self {
 		let mut s = Self {
 			id: [0u8; 32],
-			input_list: vec![],
-			output_list: vec![],
+			input_list: inputs,
+			output_list: outputs,
 		};
 		s.update_hash();
 		s
@@ -56,8 +56,10 @@ impl Transaction {
 		let mut budget = 0;
 		for input in & self.input_list {
 			if let Some(utxos) = blockchain.get_utxo_list(&input.prev_txid) {
-				if let Some(utxo) = utxos.get(input.output_index) {
-					budget += utxo.amount;
+				for utxo in utxos {
+					if utxo.output_index == input.output_index {
+						budget += utxo.amount;
+					}
 				}
 			}
 		}

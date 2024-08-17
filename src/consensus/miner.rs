@@ -36,32 +36,32 @@ impl Miner {
 	}
 
 	pub async fn start_mining(arc_self: Arc<Mutex<Self>>, should_mine: Arc<AtomicBool>) -> Block {
-		
+		// TODO: Test
 		const HASHES_PER_UPDATE: u64 = 100000;
 		
 		let mut _self = (*arc_self.lock().await).clone();
 
-		let mut height = _self.height;
-		let mut nonce;
+		let height = _self.height;
 		let mut transactions = _self.transactions;
-		let mut last_hash = _self.last_hash;
-		let mut reward_address = _self.reward_address;
+		let last_hash = _self.last_hash;
+		let reward_address = _self.reward_address;
 		let mut target_difficulty = _self.target_difficulty;
-		let mut merkle_root = calculate_merkle_tree(&transactions);
+		let merkle_root = calculate_merkle_tree(&transactions);
 		let mut rng = rand_xorshift::XorShiftRng::from_entropy();
 		
 		let mut i = 0;
+		let mut header = BlockHeader {
+			hash: [0u8; 32],
+			nonce: 0,
+			height,
+			previous_hash: last_hash,
+			merkle_root,
+			miner_address: reward_address,
+		};
 		loop {
-			nonce = rng.next_u64();
+			header.nonce = rng.next_u64();
 
-			let header = BlockHeader{
-				hash: [0u8; 32],
-				nonce,
-				height,
-				previous_hash: last_hash,
-				merkle_root,
-				miner_address: reward_address,
-			};
+			
 			let hash = calculate_hash(header.clone(), merkle_root);
 			if hash < target_difficulty {
 				return Block{ header, transactions };
@@ -76,12 +76,12 @@ impl Miner {
 				
 				// Check if data has changed
 				_self = (*arc_self.lock().await).clone();
-				height = _self.height;
+				header.height = _self.height;
 				transactions = _self.transactions;
-				last_hash = _self.last_hash;
-				reward_address = _self.reward_address;
+				header.previous_hash = _self.last_hash;
+				header.miner_address = _self.reward_address;
 				target_difficulty = _self.target_difficulty;
-				merkle_root = calculate_merkle_tree(&transactions);
+				header.merkle_root = calculate_merkle_tree(&transactions);
 
 				i=0;
 			}

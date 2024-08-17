@@ -13,10 +13,9 @@ use crate::network::node::{Node};
 use crate::network::sender::Sender;
 
 mod address;
-mod lottery;
-pub(crate) mod timing;
 mod data_sotrage;
 mod miner;
+mod core;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn blockinfo_test() {
@@ -30,7 +29,7 @@ async fn blockinfo_test() {
 		log::debug!("Info {:?}", inf);
 		assert_eq!(inf.mempool_size, 0);
 	}
-	let tx = Transaction::create_transaction(vec!(), vec!(), 31263);
+	let tx = Transaction::create_transaction(vec!(), vec!());
 	assert!(node.new_transaction(tx).await);
 	sleep(Duration::from_secs_f32(0.5));
 	for _ in 0..3 {

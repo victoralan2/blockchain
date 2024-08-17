@@ -14,6 +14,7 @@ pub struct UTXODB {
 	utxo_set: Db,
 }
 impl UTXODB {
+	// TEST
 	pub fn genesis(parameters: Parameters) -> Self {
 		let utxo_directory = format!("{}/blockchain/utxo-set/", BaseDirectory::get_base_directory());
 		let utxo_set = sled::open(utxo_directory).expect("Unable to open / create utxo set");
@@ -44,7 +45,7 @@ impl UTXODB {
 		self.remove(&undo_transaction.original_tx_id);
 		for (txid, utxo) in undo_transaction.removed_utxos.clone() {
 			if let Some(mut tx_data) = self.get(&txid) {
-				tx_data.insert(utxo.output_index, utxo);
+				tx_data.push(utxo);
 				self.insert(&txid, tx_data);
 			} else {
 				self.insert(&txid, vec![utxo])

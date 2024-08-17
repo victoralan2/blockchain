@@ -30,16 +30,20 @@ pub async fn handle_get_blocks(node: web::Data<Node>, msg: StandardExtractor<Get
 
 	let blockchain = node.blockchain.read().await;
 	let last_known_blocks = msg.block_locator_object.clone();
-	let hashes = blockchain.get_blocks(&last_known_blocks);
-
-	if let Ok(msg) = standard_serialize(&Inv {
-		data_type: InvDataType::Block,
-		hashes,
-	}) {
-		HttpResponse::Ok().body(msg)
+	if let Some(hashes) = blockchain.get_blocks(&last_known_blocks) {
+		if let Ok(msg) = standard_serialize(&Inv {
+			data_type: InvDataType::Block,
+			hashes,
+		}) {
+			HttpResponse::Ok().body(msg)
+		} else {
+			HttpResponse::InternalServerError().finish()
+		}
 	} else {
-		HttpResponse::InternalServerError().finish()
+		HttpResponse::NotFound().finish()
 	}
+
+
 }
 
 pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetData>) -> impl Responder {
@@ -61,10 +65,12 @@ pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetDa
 		}
 		InvDataType::Block => {
 			let mut data = vec![];
+
 			for &hash in requested_data {
 				let block = blockchain.get_block_by(hash).map(|x| x.transactions.clone() as BlockContent);
 				data.push(block);
 			}
+
 			if let Ok(msg) = standard_serialize(&BlocksData {
 				version: node.version,
 				blocks_data: data,
@@ -77,7 +83,6 @@ pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetDa
 	}
 }
 pub async fn handle_get_headers(node: web::Data<Node>, msg: StandardExtractor<GetHeaders>) -> impl Responder {
-
 	let request_version = msg.version;
 	let required_version = node.version;
 	if request_version != required_version { // TODO: Make version compatibility
@@ -86,13 +91,16 @@ pub async fn handle_get_headers(node: web::Data<Node>, msg: StandardExtractor<Ge
 
 	let blockchain = node.blockchain.read().await;
 	let last_known_blocks = msg.block_locator_object.clone();
-	let headers = blockchain.get_headers(&last_known_blocks);
-
-	if let Ok(msg) = standard_serialize(&Headers {
-		headers,
-	}) {
-		HttpResponse::Ok().body(msg)
+	if let Some((headers, all_headers)) = blockchain.get_headers(&last_known_blocks) {
+		if let Ok(msg) = standard_serialize(&Headers {
+			headers,
+			sent_all_headers: all_headers,
+		}) {
+			HttpResponse::Ok().body(msg)
+		} else {
+			HttpResponse::InternalServerError().finish()
+		}
 	} else {
-		HttpResponse::InternalServerError().finish()
+		HttpResponse::NotFound().finish()
 	}
 }
