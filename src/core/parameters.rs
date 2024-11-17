@@ -1,23 +1,23 @@
-pub const COIN_NAME: &str = "TENSOR";
-pub const COIN_NAME_ABBREVIATION: &str = "TNS";
+pub const COIN_NAME: &str = "RESONANCE";
+pub const COIN_NAME_ABBREVIATION: &str = "RSN";
 
 #[derive(Clone, Copy, Default)]
 pub struct Parameters {
 	pub(crate) network_parameters: NetworkParameters,
-	pub(crate) technical_parameters: TechnicalParameters,
+	// pub(crate) technical_parameters: TechnicalParameters,
 	pub(crate) economic_parameters: EconomicParameters,
 }
 
-#[derive(Clone, Copy)]
-pub struct TechnicalParameters {
-}
-
-impl Default for TechnicalParameters {
-	fn default() -> Self {
-		TechnicalParameters { // TODO: Fix this default parameters
-		}
-	}
-}
+// #[derive(Clone, Copy)]
+// pub struct TechnicalParameters {
+// }
+// 
+// impl Default for TechnicalParameters {
+// 	fn default() -> Self {
+// 		TechnicalParameters { // TODO: Fix this default parameters
+// 		}
+// 	}
+// }
 
 #[derive(Copy, Clone)]
 pub struct NetworkParameters {

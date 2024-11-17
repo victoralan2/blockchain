@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
 use sled::Db;
@@ -25,16 +25,16 @@ impl UTXODB {
 	}
 	
 	/// Adds to the UTxO set the given list of sorted UTxOs associated with the given transaction id
-	pub fn insert(&self, txid: &[u8; 32], utxo_list: Vec<UTXO>) {
+	pub fn insert(&self, txid: &[u8; 32], utxo_list: HashSet<UTXO>) {
 		let utxo_data = standard_serialize(&utxo_list).expect("Unable to serialize UTXO list");
 		self.utxo_set.insert(txid, utxo_data).expect("Unable to insert to UTXO set");
 		self.utxo_set.flush().expect("Unable to flush");
 	}
-	/// Returns all the UTxOs in order from the given transaction id
-	pub fn get(&self, txid: &[u8; 32]) -> Option<Vec<UTXO>> {
+	/// Returns all the UTxOs from the given transaction id
+	pub fn get(&self, txid: &[u8; 32]) -> Option<HashSet<UTXO>> {
 		let data = self.utxo_set.get(txid).expect("Unable to get list from UTXO set")?;
-		let utxo_list = standard_deserialize(&data).map_err(|err| log::error!("Unable to deserialize UTXO set content: {}", err)).unwrap();
-		Some(utxo_list)
+		let utxo_list: Vec<UTXO> = standard_deserialize(&data).map_err(|err| log::error!("Unable to deserialize UTXO set content: {}", err)).unwrap();
+		Some(utxo_list.iter().copied().collect())
 	}
 	/// Removes all the UTXOs related with some TxID
 	pub fn remove(&self, txid: &[u8; 32]) {
@@ -45,10 +45,10 @@ impl UTXODB {
 		self.remove(&undo_transaction.original_tx_id);
 		for (txid, utxo) in undo_transaction.removed_utxos.clone() {
 			if let Some(mut tx_data) = self.get(&txid) {
-				tx_data.push(utxo);
+				tx_data.insert(utxo);
 				self.insert(&txid, tx_data);
 			} else {
-				self.insert(&txid, vec![utxo])
+				self.insert(&txid, HashSet::from([utxo]))
 			}
 		}
 	}
@@ -61,19 +61,21 @@ impl UTXODB {
 		if let Some(mut utxo_list) = self.get(txid) {
 			for this_utxo in utxo_list.clone() {
 				if this_utxo.output_index == index {
-					let index = utxo_list
-						.iter()
-						.position(|utxo| *utxo == this_utxo)
-						.unwrap();
-					utxo_list.remove(index);
+					utxo_list.remove(&this_utxo);
 				}
 			}
-			self.remove(txid);
+			
 			if !utxo_list.is_empty() { // If the utxo_list is empty just don't bother putting it in again (we remove it)
 				self.insert(txid, utxo_list);
+			} else {
+				self.remove(txid);
 			}
 			self.utxo_set.flush().expect("Unable to flush");
 		}
+	}
+	pub fn flush(&self) -> anyhow::Result<()> {
+		self.utxo_set.flush()?;
+		Ok(())
 	}
 }
 impl Default for UTXODB {

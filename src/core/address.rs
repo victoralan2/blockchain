@@ -2,23 +2,24 @@ use std::fmt::{Debug, Display, Formatter};
 
 use base58::{FromBase58, FromBase58Error, ToBase58};
 use serde::{Deserialize, Serialize};
-
 use crate::core::parameters::COIN_NAME_ABBREVIATION;
-use crate::crypto::hash::blake;
+use crate::crypto::hash::{hash};
 use crate::crypto::public_key::PublicKeyAlgorithm;
 
 const ADDRESS_SIZE: usize = 16;
 
 #[derive(Clone, Copy, Debug, Hash, Eq, Serialize, Deserialize, PartialEq)]
 pub struct P2PKHAddress {
-	pub address: [u8; ADDRESS_SIZE]
+	pub address: [u8; ADDRESS_SIZE],
 }
+pub type SigningKey = Vec<u8>;
+pub type VerifyingKey = Vec<u8>;
+
 impl P2PKHAddress {
 	/// Returns an address, a public and a private key: (P2PKHAddress, private_key, public_key)
-	pub fn random() -> (Self, Vec<u8>, Vec<u8>) {
+	pub fn random() -> (Self, SigningKey, VerifyingKey) {
 		let (private_key, public_key) = PublicKeyAlgorithm::gen_keypair();
-		let address: &[u8; ADDRESS_SIZE] = &blake(&public_key)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten address");
-
+		let address: &[u8; ADDRESS_SIZE] = &hash(&public_key)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten address");
 		let addr = P2PKHAddress {
 			address: *address,
 		};
@@ -41,7 +42,7 @@ impl P2PKHAddress {
 		})
 	}
 	pub fn from(pk: &[u8]) -> Self {
-		let address: &[u8; ADDRESS_SIZE] = &blake(pk)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten key");
+		let address: &[u8; ADDRESS_SIZE] = &hash(pk)[0..ADDRESS_SIZE].try_into().expect("Unable to shorten key");
 		P2PKHAddress {
 			address: *address,
 		}

@@ -14,7 +14,6 @@ pub struct Input {
 	pub signature: Vec<u8>,
 	pub public_key: Vec<u8>,
 }
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct Output {
 	pub amount: u64,

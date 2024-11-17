@@ -4,4 +4,3 @@ pub mod node;
 pub mod config;
 pub mod standard;
 pub mod sender;
-pub mod timing;

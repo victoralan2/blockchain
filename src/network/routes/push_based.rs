@@ -1,9 +1,8 @@
 use actix_web::{HttpResponse, Responder, web};
 use log::info;
 use reqwest::Client;
-use crate::core::block::{Block, BlockContent};
-use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
-use crate::network::models::{GetHeaders, NewBlock, NewTransaction};
+use crate::core::block::{Block};
+use crate::network::models::{NewBlock, NewTransaction};
 use crate::network::models::http_errors::ErrorType;
 use crate::network::node::Node;
 use crate::network::standard::StandardExtractor;
@@ -20,7 +19,7 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 	if blockchain.add_transaction_to_mempool(transaction) {
 		info!("Got a new transaction. ID: \"{:?}\"", transaction.id);
 		let peers = node.peers.read().await;
-		Node::broadcast_transaction(peers.clone(), &msg.into_inner()).await; // TODO: Actually check for duplicates
+		Node::broadcast_transaction(&node, peers.clone(), &msg.into_inner()).await; // TODO: Actually check for duplicates
 		HttpResponse::Ok().finish()
 	} else {
 		HttpResponse::BadRequest().body(ErrorType::InvalidTransaction(blockchain.get_context()).to_string())
@@ -28,7 +27,7 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 }
 
 pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock>) -> impl Responder {
-	// TODO: DEFFENETLY CHECK THIS FUNCTION LOL
+	// TODO: DEFENSIVELY CHECK THIS FUNCTION LOL
 	// TODO CHECK IF THE BLOCK IS THE SAME HEIGHT AS THE CURRENT ONE AND STILL VALID
 	// TODO: CHECK IF BLOCK IS BEFORE CURRENT SLOT BUT AFTER LAST'S BLOCK SLOT
 	// TODO: IF SLOT IS SAMES AS LAST BLOCK AND HEIGHT IS SAMES AS LAST BLOCK, CHECK FOR LOTTERY
@@ -151,5 +150,4 @@ pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock
 	} else {
 		return HttpResponse::BadRequest().body(ErrorType::InvalidBlock(blockchain.get_context()).to_string());
 	}
-
 }

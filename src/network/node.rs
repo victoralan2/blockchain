@@ -14,7 +14,7 @@ use local_ip_address::local_ip;
 use rand::prelude::IteratorRandom;
 use rand::thread_rng;
 use reqwest::{Client, Url};
-use rsntp::{AsyncSntpClient, Config, SynchronizationError};
+use rsntp::{Config, SynchronizationError};
 use serde::Serialize;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::block_in_place;
@@ -22,13 +22,12 @@ use crate::consensus::miner::Miner;
 
 use crate::core::block::Block;
 use crate::core::blockchain::BlockChain;
-use crate::core::Hashable;
 use crate::core::keys::NodeKeyChain;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
 use crate::data_storage::node_config_storage::node_config::NodeConfig;
 use crate::data_storage::node_config_storage::url_serialize::PeerUrl;
-use crate::network::{config, timing};
+use crate::network::{config};
 use crate::network::config::config_routes;
 use crate::network::models::{BlocksData, GetBlocks, GetData, GetHeaders, Headers, HttpScheme, InvDataType, NewBlock, NewTransaction};
 use crate::network::sender::Sender;
@@ -38,6 +37,7 @@ use crate::network::standard::standard_serialize;
 pub struct Node {
 	// TODO: Keys... and stuff
 	pub version: u32,
+	pub recently_seen_ids: Arc<RwLock<HashSet<[u8; 32]>>>,
 	pub blockchain: Arc<RwLock<BlockChain>>,
 	pub peers: Arc<RwLock<HashSet<PeerUrl>>>,
 	// TODO: Implement gossip protocol instead of broadcasting everything to everyone
@@ -50,9 +50,6 @@ pub struct Node {
 	pub should_mine: Arc<AtomicBool>
 }
 
-pub(crate) const STARTING_SLOT_SECOND: u64 = 0;
-
-// TODO: AT THE END CHANGE THIS NUMBER FOR THE EPOCH SECOND OF THE TIME THE CRYPTO IS RELEASED
 impl Node {
 	pub async fn default(version: u32) -> Self {
 		// let ntp_client = AsyncSntpClient::new();
@@ -63,10 +60,11 @@ impl Node {
 		// 	.expect("Time went backwards") - Duration::from_secs(STARTING_SLOT_SECOND);
 		let parameters = Parameters::default();
 		let key_chain = NodeKeyChain::random();
-		let reward_address = key_chain.wallet_key_pair.0;
+		let reward_address = key_chain.address;
 		let config = NodeConfig::default();
 		Self {
 			version,
+			recently_seen_ids: Arc::new(Default::default()),
 			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters, &config))),
 			shutdown: Arc::new(AtomicBool::new(false)),
 			key_chain,
@@ -90,9 +88,10 @@ impl Node {
 		let peers = config.trusted_peers.clone();
 
 		let key_chain = NodeKeyChain::random();
-		let reward_address = key_chain.wallet_key_pair.0;
+		let reward_address = key_chain.address;
 		Self {
 			version,
+			recently_seen_ids: Arc::new(Default::default()),
 			blockchain: Arc::new(RwLock::new(BlockChain::init(parameters, &config))),
 			shutdown: Arc::new(AtomicBool::new(false)),
 			key_chain,
@@ -110,10 +109,6 @@ impl Node {
 		log::info!("Node started successfully");
 		let mut self_clone = self.clone();
 		tokio::spawn(async move {
-			self_clone.main_loop().await;
-		});
-		let mut self_clone = self.clone();
-		tokio::spawn(async move {
 			// TODO: Give miner needed info
 			loop {
 				self_clone.update_miner().await;
@@ -128,10 +123,7 @@ impl Node {
 					let peers = self_clone.peers.read().await.clone();
 
 					log::info!("Started broadcasting block {}", msg.block.header.height);
-					tokio::spawn(async move {
-						Self::broadcast_block(&msg, &peers).await;
-						log::info!("Finished broadcasting block {}.", msg.block.header.height);
-					}).await.ok();
+					self_clone.broadcast_block(&msg, &peers).await;
 				} else {
 					log::error!("New block created but could not add to blockchain")
 				}
@@ -141,7 +133,7 @@ impl Node {
 		log::info!("Started main loop thread");
 	}
 	fn start_node(&mut self) {
-		// STARTS THE NODE, THE ENTRY POINT.
+		// STARTS THE NODE
 		let app_state = Data::new(self.clone());
 
 		// Setup server
@@ -170,7 +162,7 @@ impl Node {
 
 	async fn update_miner(&mut self) {
 		let mut miner = self.miner.lock().await;
-		miner.reward_address = self.key_chain.wallet_key_pair.0;
+		miner.reward_address = self.key_chain.address;
 		let blockchain = self.blockchain.read().await;
 		miner.height = blockchain.get_height();
 		miner.last_hash = blockchain.get_last_block().header.hash;
@@ -179,142 +171,14 @@ impl Node {
 		let max_block_body_size = self.parameters.network_parameters.max_block_body_size;
 		miner.transactions = blockchain.mempool.get_map().iter().take(max_block_body_size / max_tx_size).cloned().collect();
 	}
-	/// Forges a new block when the lottery is won
-	pub async fn mine_new_block(&mut self) {
-		// todo!();
-		log::info!("Lottery won!");
-		
-		let start = Instant::now();
-		let mut chain = self.blockchain.write().await;
-
-		let prev_hash = chain.get_last_block().header.hash;
-
-		let mut transactions = Vec::new();
-
-		for tx in chain.mempool.get_map() {
-			if size_of_val(&transactions) > self.parameters.network_parameters.max_block_body_size {
-				transactions.remove(transactions.len() - 1);
-				break;
-			} else {
-				transactions.push(tx.clone());
-			}
-		}
-
-		
-		let new_block = Block::new(
-			chain.get_height() + 1,
-			transactions,
-			prev_hash,
-			self.key_chain.wallet_key_pair.0,
-			0
-		);
-		if chain.add_block(&new_block) {
-			let msg = NewBlock {
-				version: self.version,
-				block: new_block,
-			};
-			let peers = self.peers.read().await.clone();
-			log::info!("Took about {:?} to add to chain", start.elapsed());
-
-			log::info!("Started broadcasting block {}", msg.block.header.height);
-			tokio::spawn(async move {
-				Self::broadcast_block(&msg, &peers).await;
-				log::info!("Finished broadcasting block {}.", msg.block.header.height);
-			}).await.ok();
-		} else {
-			log::error!("New block created but could not add to blockchain")
-		}
-	}
-
 	pub fn start_mining(&mut self) {
 		self.should_mine.store(true, Ordering::Relaxed);
 	}
 	pub fn stop_mining(&mut self) {
 		self.should_mine.store(false, Ordering::Relaxed);
 	}
-	pub async fn main_loop(&mut self) {
-		let mut counter = 0u32; // Counter to replace peers
-		const REPLACE_PEER_TIME: u32 = 10u32; // In seconds
-		while !self.is_shutdown() {
-			// // Check if pairs height is bigger
-			// let self_copy = self.clone();
-			// spawn(async move {
-			// 	let peers = self_copy.peers.read().await.clone();
-			//
-			// 	let client = Client::new();
-			// 	let current_height = self_copy.blockchain.read().await.get_height();
-			// 	for peer in peers {
-			// 		let info = tokio::time::timeout(Duration::from_millis(500), Sender::get_blockchain_info(&client, peer)).await; // Timeout because it may take a long time
-			// 		if let Ok(Ok(info)) = info {
-			// 			let height = info.height;
-			// 			if height > current_height {
-			// 				let mut self_copy_copy = self_copy.clone();
-			// 				spawn(async move {self_copy_copy.sync_chain().await});
-			// 				break;
-			// 			}
-			// 		}
-			// 	}
-			// });
-			// Check if peer list is full
-			if self.peers.read().await.len() < self.config.max_peers {
-				let mut self_copy = self.clone();
-				// spawn(async move {self_copy.discover_peers().await;}); // TODO: Enable this
-			}
-
-			if counter > REPLACE_PEER_TIME {
-				let mut self_copy = self.clone();
-				counter = 0;
-				// spawn(async move { self_copy.cycle_peers().await; }); //TODO: Enable this
-			}
-
-			counter += 1;
-			tokio::time::sleep(Duration::from_secs(1)).await;
-		}
-	}
-	
-	pub async fn discover_peers(&mut self) {
-		// TODO
-	}
-	
-	async fn discover_n_peers(&self, n: u32) -> HashSet<PeerUrl> {
-		// TODO: Check that the peer discovered isn't already in peer list
-		// TODO: Check that if the peer list is empty, use seed peers
-		// TODO: Check that the peer version is valid and the peer is online
-
-		const N: u32 = 2;
-		const M: u32 = 10;
-
-		let mut current_peers = self.peers.read().await.clone();
-		let mut rng = thread_rng();
-		for _ in 0..N {
-			for p in current_peers.clone() {
-				// Sender::get_peers();
-			}
-		}
-		todo!()
-	}
-	pub async fn cycle_peers(&mut self) {
-		let peer_cycle_count = self.config.peer_cycle_count;
-		let trusted_peers = &self.config.trusted_peers;
-		let new_peers: HashSet<PeerUrl> = self.discover_n_peers(peer_cycle_count as u32).await;
-
-		let mut peers = self.peers.write().await;
-		let peers_to_remove: Vec<PeerUrl> = peers.iter()
-			.filter(|&url| { !trusted_peers.contains(url) }) // Check that it does not remove a trusted peer
-			.cloned()
-			.choose_multiple(&mut thread_rng(), peer_cycle_count);
-
-		for peer in peers_to_remove {
-			peers.remove(&peer);
-		}
-		for new_peer in new_peers {
-			peers.insert(new_peer);
-		}
-	}
-	pub async fn sync_chain(&mut self) {
-		// TODO
-	}
 	pub async fn shutdown(&mut self) {
+		self.blockchain.write().await.flush();
 		self.shutdown.store(true, Ordering::Relaxed);
 		if let Some(handle) = &self.server_handle {
 			handle.stop(true).await;
@@ -332,14 +196,18 @@ impl Node {
 				transaction,
 			};
 			let peers = self.peers.read().await.clone();
-			Self::broadcast_transaction(peers, &msg).await;
+			self.broadcast_transaction(peers, &msg).await;
 			true
 		} else {
 			false
 		}
 	}
 
-	pub async fn broadcast_transaction(peers: HashSet<PeerUrl>, tx: &NewTransaction) {
+	pub async fn broadcast_transaction(&self, peers: HashSet<PeerUrl>, tx: &NewTransaction) {
+		let mut set = self.recently_seen_ids.write().await;
+		if !set.insert(tx.transaction.id) {
+			return;
+		}
 		let urls: HashSet<Url> = peers.iter().map(|url| {
 			let mut new_url = url.to_url().clone();
 			new_url.set_path(config::NEW_TRANSACTION_URL);
@@ -348,7 +216,11 @@ impl Node {
 
 		Self::broadcast_bytes(urls, tx).await;
 	}
-	pub async fn broadcast_block(block: &NewBlock, peers: &HashSet<PeerUrl>) {
+	pub async fn broadcast_block(&self, block: &NewBlock, peers: &HashSet<PeerUrl>) {
+		let mut set = self.recently_seen_ids.write().await;
+		if !set.insert(block.block.header.hash) {
+			return;
+		}
 		// TODO: Implement gossip protocol instead of broadcasting everything to everyone
 		let urls: HashSet<Url> = peers.iter().map(|url| {
 			let mut new_url = url.to_url().clone();

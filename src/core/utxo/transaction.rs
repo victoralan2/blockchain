@@ -14,6 +14,7 @@ pub struct Transaction {
 	pub output_list: Vec<Output>,
 }
 
+
 impl Transaction {
 	pub fn create_transaction(inputs: Vec<Input>, outputs: Vec<Output>) -> Self {
 		let mut s = Self {

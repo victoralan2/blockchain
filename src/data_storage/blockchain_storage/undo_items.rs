@@ -7,7 +7,7 @@ use crate::core::utxo::UTXO;
 #[derive(Clone, Debug, Eq, Hash, Serialize, Deserialize, PartialEq)]
 pub struct UndoTransaction {
 	pub original_tx_id: [u8; 32],
-	/// The UTxOs that the transaction removed to the thing
+	/// The UTxOs that the transaction removed to the UTXOSet
 	pub removed_utxos: Vec<([u8; 32], UTXO)>,
 }
 

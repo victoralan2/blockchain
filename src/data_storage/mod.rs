@@ -1,7 +1,7 @@
 use std::string::ToString;
-use tokio::sync::Mutex;
 
 use lazy_static::lazy_static;
+use std::sync::Mutex;
 
 use crate::core::parameters::COIN_NAME;
 
@@ -45,12 +45,12 @@ lazy_static! {
 pub struct BaseDirectory;
 impl BaseDirectory {
 	pub fn get_base_directory() -> String {
-		let lock = BASE_DIRECTORY.lock().await;
+		let lock = BASE_DIRECTORY.lock().unwrap();
 		lock.clone()
 	}
 
 	pub fn set_base_directory(new_basedir: &str) {
-		let mut mut_lock = BASE_DIRECTORY.lock().await;
+		let mut mut_lock = BASE_DIRECTORY.lock().unwrap();
 		*mut_lock = new_basedir.to_string();
 	}
 }
