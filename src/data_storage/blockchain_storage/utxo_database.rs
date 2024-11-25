@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
 use sled::Db;
-
+use crate::core::address::P2PKHAddress;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::UTXO;
 use crate::data_storage::BaseDirectory;
@@ -18,7 +18,6 @@ impl UTXODB {
 	pub fn genesis(parameters: Parameters) -> Self {
 		let utxo_directory = format!("{}/blockchain/utxo-set/", BaseDirectory::get_base_directory());
 		let utxo_set = sled::open(utxo_directory).expect("Unable to open / create utxo set");
-		// TODO: Add genesis distribution in here
 		Self {
 			utxo_set,
 		}
@@ -52,7 +51,21 @@ impl UTXODB {
 			}
 		}
 	}
-	
+	/// Returns all the UTxOs from the given transaction id
+	pub fn get_utxos_from_address(&self, address: P2PKHAddress) -> Vec<UTXO> {
+		let mut final_utxos = vec![];
+		for tx in self.utxo_set.iter() {
+			if let Ok((_, utxos)) = tx {
+				let utxos: Vec<UTXO> = standard_deserialize(&utxos).map_err(|err| log::error!("Unable to deserialize UTXO set content: {}", err)).unwrap();
+				for u in utxos {
+					if u.recipient_address == address {
+						final_utxos.push(u);
+					}
+				}
+			}
+		}
+		final_utxos
+	}
 	/// Removes an output of the given txid and with the given index.
 	/// Indexes of all UTxOs will be checked instead of removing the nth one, this is because a previous index could have been removed before.
 	pub fn remove_utxo(&self, txid: &[u8; 32], index: usize) {

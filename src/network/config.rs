@@ -9,6 +9,7 @@ use crate::network::routes::{handshake, p2p, pull_based, push_based};
 
 pub const VERSION_URL: &str = "/version";
 pub const GET_BLOCKCHAIN_INFO_URL: &str = "/get-blockchain-info";
+pub const GET_UTXOS_URL: &str = "/get-utxos";
 pub const NEW_TRANSACTION_URL: &str = "/tx";
 pub const NEW_BLOCK_URL: &str = "/block";
 pub const PAIR_UP_URL: &str = "/pair-up";
@@ -23,6 +24,7 @@ pub fn config_routes(config: &mut ServiceConfig) {
 		.route("/test", web::post().to(test))
 		.route(VERSION_URL, web::get().to(handshake::handle_version))
 		.route(GET_BLOCKCHAIN_INFO_URL, web::get().to(pull_based::handle_get_blockchain_info))
+		.route(GET_UTXOS_URL, web::get().to(pull_based::handle_get_utxos))
 		.route(NEW_TRANSACTION_URL, web::post().to(push_based::handle_tx))
 		.route(NEW_BLOCK_URL, web::post().to(push_based::handle_block))
 		.route(PAIR_UP_URL, web::post().to(p2p::handle_pair_up))

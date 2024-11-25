@@ -2,24 +2,33 @@ use actix_web::{HttpResponse, Responder, web};
 use log::info;
 use reqwest::Client;
 use crate::core::block::{Block};
+use crate::core::Hashable;
 use crate::network::models::{NewBlock, NewTransaction};
 use crate::network::models::http_errors::ErrorType;
 use crate::network::node::Node;
 use crate::network::standard::StandardExtractor;
 
 pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransaction>) -> impl Responder {
+	info!("Tx request received");
+	
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 	
 	let transaction = &msg.transaction;
+	let mut set = node.recently_seen_ids.write().await;
+	
+	if !set.insert(transaction.id) {
+		return HttpResponse::AlreadyReported().finish();
+	}
+	
 	let mut blockchain = node.blockchain.write().await;
 	if blockchain.add_transaction_to_mempool(transaction) {
 		info!("Got a new transaction. ID: \"{:?}\"", transaction.id);
 		let peers = node.peers.read().await;
-		Node::broadcast_transaction(&node, peers.clone(), &msg.into_inner()).await; // TODO: Actually check for duplicates
+		Node::broadcast_transaction(&node, peers.clone(), &msg.into_inner()).await;
 		HttpResponse::Ok().finish()
 	} else {
 		HttpResponse::BadRequest().body(ErrorType::InvalidTransaction(blockchain.get_context()).to_string())
@@ -27,10 +36,8 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 }
 
 pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock>) -> impl Responder {
-	// TODO: DEFENSIVELY CHECK THIS FUNCTION LOL
+	// TODO: DEFENETLY CHECK THIS FUNCTION LOL
 	// TODO CHECK IF THE BLOCK IS THE SAME HEIGHT AS THE CURRENT ONE AND STILL VALID
-	// TODO: CHECK IF BLOCK IS BEFORE CURRENT SLOT BUT AFTER LAST'S BLOCK SLOT
-	// TODO: IF SLOT IS SAMES AS LAST BLOCK AND HEIGHT IS SAMES AS LAST BLOCK, CHECK FOR LOTTERY
 	let request_version = msg.version;
 	let required_version = node.version;
 	if request_version != required_version { // TODO: Make version compatibility
@@ -38,6 +45,11 @@ pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock
 	}
 
 	let block = &msg.block;
+	let mut set = node.recently_seen_ids.write().await;
+
+	if !set.insert(block.calculate_hash()) {
+		return HttpResponse::AlreadyReported().finish();
+	}
 	let mut blockchain = node.blockchain.write().await;
 	if !block.is_correct() {
 		info!("Received incorrect block");
@@ -48,14 +60,14 @@ pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock
 		if blockchain.add_block(block) {
 			info!("Received valid block with hash {} and height {}", hex::encode(block.header.hash), block.header.height);
 			// TODO: Uncomment when no more testing
-			// node.broadcast_block(&msg.into_inner()).await; // TODO: Actually check for duplicates
+			node.broadcast_block(&msg.into_inner(), &node.peers.read().await.clone()).await;
 			HttpResponse::Ok().finish()
 
 		} else {
 			info!("Received invalid block");
-			return HttpResponse::BadRequest().body(ErrorType::InvalidBlock(blockchain.get_context()).to_string());
+			HttpResponse::BadRequest().body(ErrorType::InvalidBlock(blockchain.get_context()).to_string())
 		}
-	} else if block.header.height > blockchain.get_last_block().header.height { // TODO: Instead of checking for height check for accumulated work
+	} else if block.header.height > blockchain.get_last_block().header.height {
 		const MAX_BLOCK_LOCATOR_OBJECTS: usize = 1024;
 		let peers = node.peers.read().await;
 		let client = Client::new();
@@ -82,7 +94,7 @@ pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock
 					let mut last_hash = common_header.previous_hash;
 					// Check PoW of all headers
 					for header in &headers {
-						if !header.verify_proof_of_work() || last_hash != header.previous_hash { // TODO: Change this if dynamic PoW difficulty
+						if !header.verify_proof_of_work(node.parameters.network_parameters.proof_of_work_difficulty) || last_hash != header.previous_hash { // TODO: Change this if dynamic PoW difficulty
 							continue 'peers_loop
 						}
 						last_hash = header.hash;

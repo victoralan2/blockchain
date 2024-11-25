@@ -1,3 +1,4 @@
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
@@ -40,10 +41,12 @@ impl Input {
 	pub fn verify_signature(&self) -> bool {
 		// TODO: Test code
 		let hash = self.calculate_hash();
+
 		let signature =  &self.signature;
 		if PublicKeyAlgorithm::verify(&self.public_key, &hash, signature).is_ok() {
 			return true;
 		}
+		info!("{:?}", PublicKeyAlgorithm::verify(&self.public_key, &hash, signature));
 		false
 	}
 	pub fn validate(&self, blockchain: &BlockChain) -> bool {

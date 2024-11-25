@@ -21,11 +21,11 @@ impl PublicKeyAlgorithm {
 	}
 	pub fn sign(key: &[u8], data: &[u8]) -> Result<Vec<u8>, PublicKeyError> {
 		let mut sk = Self::skey_from_bytes(&key)?;
-		let signature: Signature = sk.sign(&[]);
+		let signature: Signature = sk.sign(data);
 		Ok(signature.to_bytes().to_vec())
 	}
 	///
-	/// Returns true if the signature matches, false otherwise. If the signature is not valid an error is returned
+	/// If the signature is not valid an error is returned
 	///
 	pub fn verify(key: &[u8], data: &[u8], signature: &[u8]) -> Result<(), PublicKeyError> {
 		let vk = Self::pkey_from_bytes(&key)?;

@@ -30,7 +30,7 @@ pub async fn handle_get_peers(node: web::Data<Node>) -> impl Responder {
 pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp>, req: HttpRequest) -> impl Responder {
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 

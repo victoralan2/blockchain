@@ -1,12 +1,23 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-
+use crate::core::address::P2PKHAddress;
 use crate::core::block::{Block, BlockContent, BlockHeader};
 use crate::core::utxo::transaction::Transaction;
+use crate::core::utxo::UTXO;
 
 pub mod http_errors;
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct GetUTXOs {
+	pub(crate) version: u32,
+	pub(crate) address: P2PKHAddress,
+}
+#[derive(Clone, Deserialize, Serialize)]
+pub struct UTXOs {
+	pub(crate) version: u32,
+	pub(crate) utxos: Vec<UTXO>,
+}
 #[derive(Clone, Deserialize, Serialize, Copy)]
 pub enum InvDataType {
 	Transaction,

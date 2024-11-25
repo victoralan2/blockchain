@@ -1,4 +1,6 @@
 use std::collections::HashSet;
+use log::info;
+use crate::core::address::P2PKHAddress;
 use crate::core::block::{Block, BlockHeader};
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
@@ -25,12 +27,23 @@ impl BlockChain {
 	pub fn get_utxo_list(&self, txid: &[u8; 32]) -> Option<HashSet<UTXO>>{
 		self.utxo_set.get(txid)
 	}
+	pub fn get_utxos_from_address(&self, address: P2PKHAddress) -> Vec<UTXO> {
+		self.utxo_set.get_utxos_from_address(address)
+	}
 	
 	/// Validates and adds the transaction to the memory pool if valid.
 	/// Returns whether the tx was added or not
 	pub fn add_transaction_to_mempool(&mut self, tx: &Transaction) -> bool {
 		let is_valid = tx.is_valid(self);
 		if is_valid {
+			for input in &tx.input_list {
+				for tx in self.mempool.get_map() {
+					if tx.input_list.contains(input) {
+						info!("Transaction uses output already used by another one in mempool");
+						return false;
+					}
+				}
+			}
 			let insert_result = self.mempool.insert(tx);
 			insert_result.is_ok_and(|b| b)
 		} else {
@@ -113,9 +126,9 @@ impl BlockChain {
 		// TODO: Add a reward to the miner (add a UTXO with miner's address)
 		if self.is_block_valid(new_block) { // TODO: In this line maybe test for the other cases too
 			// Todo: some more checks and add block to blockchain
-			// Todo: Check if block has higher VRF and it does not diverge more than 3k/f
 			// Todo: build up the utxo set. PROBABLY DONE
-		
+
+
 			let mut undo_block = UndoBlock {
 				height: new_block.header.height,
 				original_hash: new_block.header.hash,
@@ -152,9 +165,16 @@ impl BlockChain {
 					};
 					utxo_list.push(utxo);
 				}
+				self.utxo_set.insert(&tx.id, utxo_list.iter().copied().collect());
 			}
-			// TODO: Add the
-		
+			// Adds the coinbase utxo
+			let coinbase_utxo = UTXO {
+				txid: new_block.header.hash,
+				output_index: 0,
+				amount: self.parameters.economic_parameters.mining_reward,
+				recipient_address: new_block.header.miner_address,
+			};
+			self.utxo_set.insert(&new_block.header.hash, HashSet::from([coinbase_utxo]));
 		
 			self.chain.push_block_to_end(&new_block.clone(), &undo_block).expect("Unable to write block to database");
 			return true;
@@ -167,28 +187,38 @@ impl BlockChain {
 		let height = self.get_height();
 		let is_block_correct = block.is_correct();
 		if !is_block_correct {
+			info!("Block was not valid: Block was not correct");
 			return false
 		}
 
-		// TODO: Verify PoW
+		if block.header.hash >= self.parameters.network_parameters.proof_of_work_difficulty {
+			info!("Block was not valid: PoW Invalid");
+			
+			return false;
+		} 
 		
 
 		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
 		for tx in &block.transactions {
 			if !tx.is_valid(self) {
+				info!("Block was not valid: Invalid transaction");
+				
 				return false
 			}
 		}
 
-		if let Some(previous) = self.get_block_at(height - 1) {
+		if let Some(previous) = self.get_block_at(height) {
 			let is_previous_hash_correct = block.header.previous_hash == previous.header.hash;
 			if !is_previous_hash_correct {
+				info!("Block was not valid: Incorrect previous hash");
 				return false;
 			}
 		}
 
-		let is_height_correct = block.header.height == self.get_height();
+		let is_height_correct = block.header.height == height + 1;
 		if !is_height_correct {
+			info!("Block was not valid: Incorrect height. Expected {} but got {}", self.get_height(), block.header.height);
+			
 			return false
 		}
 		true
@@ -210,9 +240,7 @@ impl BlockChain {
 	/// Undoes the blockchain until block_hash (exclusive) is the best block, returns all the blocks that have been undone
 	/// Returns None if block_hash does not exist
 	pub fn undo_until(&mut self, block_hash: [u8; 32]) -> Option<Vec<Block>> {
-		if self.get_block_by(block_hash).is_none() {
-			return None;
-		}
+		self.get_block_by(block_hash)?;
 
 		// TODO: Maybe add a limit to this function as it is very very memory expensive, (it holds all blocks in memory) (maybe optimize in some way??)
 		let mut undone_blocks = vec![];

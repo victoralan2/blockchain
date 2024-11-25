@@ -1,7 +1,8 @@
 use actix_web::{HttpResponse, Responder, web};
-
+use base58::ToBase58;
+use log::info;
 use crate::core::block::BlockContent;
-use crate::network::models::{BlockchainInfo, BlocksData, GetBlocks, GetData, GetHeaders, Headers, Inv, InvDataType};
+use crate::network::models::{BlockchainInfo, BlocksData, GetBlocks, GetData, GetHeaders, GetUTXOs, Headers, Inv, InvDataType, UTXOs};
 use crate::network::models::http_errors::ErrorType;
 use crate::network::node::Node;
 use crate::network::standard::{standard_serialize, StandardExtractor};
@@ -15,6 +16,20 @@ pub async fn handle_get_blockchain_info(node: web::Data<Node>) -> impl Responder
 		mempool_size: chain.mempool.get_map().len()
 	};
 	if let Ok(serialized) = standard_serialize(&info) {
+		HttpResponse::Ok().body(serialized)
+	} else {
+		HttpResponse::InternalServerError().finish()
+	}
+}
+pub async fn handle_get_utxos(node: web::Data<Node>, msg: StandardExtractor<GetUTXOs>) -> impl Responder {
+	
+	let address = msg.address;
+	let utxos = node.blockchain.read().await.get_utxos_from_address(address);
+	let msg = UTXOs {
+		version: node.version,
+		utxos,
+	};
+	if let Ok(serialized) = standard_serialize(&msg) {
 		HttpResponse::Ok().body(serialized)
 	} else {
 		HttpResponse::InternalServerError().finish()

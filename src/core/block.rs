@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::core::address::P2PKHAddress;
@@ -25,8 +26,8 @@ impl BlockHeader {
 }
 
 impl BlockHeader {
-	pub fn verify_proof_of_work(&self) -> bool {
-		todo!(); // TODO: USE
+	pub fn verify_proof_of_work(&self, difficulty: [u8; 32]) -> bool {
+		self.hash < difficulty
 	}
 }
 pub type BlockContent = Vec<Transaction>;
@@ -60,8 +61,6 @@ impl Block {
 	}
 	pub fn genesis() -> Self {
 		
-		// TODO: Choose extra entropy better
-		
 		let header = BlockHeader {
 			hash: [0u8; 32],
 			nonce: 0,
@@ -90,6 +89,7 @@ impl Block {
 		let is_hash_correct = self.calculate_hash() == self.header.hash;
 		let is_merkle_tree_correct = self.calculate_merkle_tree() == self.header.merkle_root;
 		if !(is_merkle_tree_correct && is_hash_correct) {
+			info!("Block was not correct: Merkle root or hash was not correct");
 			return false;
 		}
 		let mut input_tx_list = HashSet::new();
@@ -97,12 +97,16 @@ impl Block {
 			// CHECKS IF THERE ARE TWO INPUTS USING SAME OUTPUT
 			for input in &tx.input_list {
 				if !input_tx_list.insert(input.calculate_hash()) {
+					info!("Block was not correct: Two inputs using same output");
+					
 					return false;
 				}
 			}
 			let is_transaction_valid = tx.is_valid_heuristic();
 
 			if !is_transaction_valid {
+				info!("Block was not correct: Transaction was not correct");
+				
 				return false;
 			}
 		}
@@ -118,14 +122,4 @@ pub enum BlockValidity {
 	/// /// Meaning that it is better than the current last block of the blockchain and should REPLACE it
 	BetterThanLastBlock, 
 	Valid,
-}
-pub enum InvalidityReason { // TODO
-	/// Last hash is different
-	WrongContext, 
-	InvalidHash,
-	/// The VRF was not valid
-	InvalidVRF,
-	/// There is some transaction that is not valid in the block
-	InvalidTransaction, 
-	TooLarge,
 }

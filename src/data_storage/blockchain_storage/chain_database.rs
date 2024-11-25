@@ -1,8 +1,8 @@
 use std::fmt::Error;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
-
-use log::Log;
+use base32::Alphabet;
+use log::{info, Log};
 use p256::pkcs8::der::Writer;
 use serde::{Deserialize, Serialize};
 use sled::{Db};
@@ -69,7 +69,12 @@ pub struct ChainDB {
 impl ChainDB {
 	pub fn print_debug(&self) {
 		for i in 0..self.get_length() {
-			dbg!(self.get_block_by_height(i).unwrap().header.height, self.get_block_by_height(i).unwrap().header.nonce);
+			let previous_hash = base32::encode(Alphabet::Crockford, &self.get_block_by_height(i).unwrap().header.previous_hash);
+			let height = self.get_block_by_height(i).unwrap().header.height;
+			let nonce = self.get_block_by_height(i).unwrap().header.nonce;
+			let hash = base32::encode(Alphabet::Crockford, &self.get_block_by_height(i).unwrap().header.hash);
+			dbg!(previous_hash, height, nonce, hash);
+			println!();
 		}
 	}
 	/// Does not check if there is already a block in that index or hash. Must be checked before calling this function.
@@ -97,7 +102,7 @@ impl ChainDB {
 	
 	pub fn get_undo_block(&self, block_hash: &[u8; 32]) -> anyhow::Result<Option<UndoBlock>> {
 		if let Some(undo_block) = self.undo_block_db.get(block_hash)? {
-			let undo_block: UndoBlock = standard_deserialize(&undo_block.to_vec())?;
+			let undo_block: UndoBlock = standard_deserialize(&undo_block)?;
 			Ok(Some(undo_block))
 		} else {
 			Ok(None)
@@ -155,7 +160,7 @@ impl ChainDB {
 		Some(hash)
 	}
 	fn is_empty(&self) -> bool {
-		self.chain_db.is_empty() || self.index_to_hash_db.is_empty()
+		self.chain_db.is_empty() && self.index_to_hash_db.is_empty()
 	}
 	
 	/// The length, in other words, the height of the last block + 1
@@ -204,7 +209,7 @@ impl Default for ChainDB {
 		if this.is_empty() {
 			this.push_block_to_end(&Block::genesis(), &UndoBlock::genesis()).expect("Unable to insert genesis block");
 		}
-		
+
 		this
 	}
 }

@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::core::blockchain::BlockChain;
@@ -64,12 +64,14 @@ impl Transaction {
 				}
 			}
 		}
+		info!("SUM: B: {}, S: {}", budget, spent);
 		budget == spent
 	}
 	pub fn is_valid_heuristic(&self) -> bool {
 		let is_tx_size_valid = self.input_list.len() < 128 && self.output_list.len() < 128;
 		let are_inputs_unique = self.are_inputs_unique();
 		let are_signatures_valid = self.verify_input_signatures();
+		
 		are_signatures_valid && are_inputs_unique && is_tx_size_valid
 	}
 	pub fn are_inputs_unique(&self) -> bool {
@@ -83,10 +85,6 @@ impl Transaction {
 	}
 	/// Checks if the transaction's signature is valid, if the hash is valid and if the sender can afford to send this transaction
 	pub fn is_valid(&self, blockchain: &BlockChain) -> bool {
-		// TODO: CHECK FOR THE FEE OUTPUT OR SMT
 		self.is_valid_heuristic() && self.do_sum(blockchain) && self.validate_inputs(blockchain)
-	}
-	pub fn size(&self) -> usize {
-		0 // FIXME
 	}
 }
