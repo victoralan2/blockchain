@@ -50,9 +50,9 @@ impl BlockChain {
 			false
 		}
 	}
-	pub fn get_context(&self) -> String { // TODO: If this function is still usefull, make it return a struct not a string
+	pub fn get_context(&self) -> String { 
 		let last_block_hash = self.get_last_block().header.hash;
-		hex::encode(last_block_hash) // TODO: Maybe add some more context
+		hex::encode(last_block_hash) 
 	}
 	pub fn get_block_at(&self, height: usize) -> Option<Block> {
 		self.chain.get_block_by_height(height)
@@ -123,11 +123,7 @@ impl BlockChain {
 		self.chain.print_debug();
 	}
 	pub fn add_block(&mut self, new_block: &Block) -> bool {
-		// TODO: Add a reward to the miner (add a UTXO with miner's address)
-		if self.is_block_valid(new_block) { // TODO: In this line maybe test for the other cases too
-			// Todo: some more checks and add block to blockchain
-			// Todo: build up the utxo set. PROBABLY DONE
-
+		if self.is_block_valid(new_block) {
 
 			let mut undo_block = UndoBlock {
 				height: new_block.header.height,
@@ -182,7 +178,6 @@ impl BlockChain {
 		false
 	}
 	pub fn is_block_valid(&self, block: &Block) -> bool {
-		// TODO
 
 		let height = self.get_height();
 		let is_block_correct = block.is_correct();
@@ -198,7 +193,6 @@ impl BlockChain {
 		} 
 		
 
-		// TODO: DOING: I was trying to make so that when the block can replace the last one is valid. Problem: Transactions are bitches bc last block interfeers with that and SHIT FUCK
 		for tx in &block.transactions {
 			if !tx.is_valid(self) {
 				info!("Block was not valid: Invalid transaction");
@@ -222,7 +216,6 @@ impl BlockChain {
 			return false
 		}
 		true
-		// TODO: NOW
 	}
 	pub fn undo_block(&mut self, block_hash: &[u8; 32]) -> anyhow::Result<bool> {
 		if block_hash == &self.get_last_block().header.hash {
@@ -242,7 +235,6 @@ impl BlockChain {
 	pub fn undo_until(&mut self, block_hash: [u8; 32]) -> Option<Vec<Block>> {
 		self.get_block_by(block_hash)?;
 
-		// TODO: Maybe add a limit to this function as it is very very memory expensive, (it holds all blocks in memory) (maybe optimize in some way??)
 		let mut undone_blocks = vec![];
 		let mut last_block = self.get_last_block();
 		while last_block.header.hash != block_hash {

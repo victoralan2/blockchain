@@ -42,7 +42,7 @@ pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp
 	if let Some(addr) = req.peer_addr() {
 		let url_string = format!("{}://{}:{}", scheme, addr.ip(), request_port);
 		let regex = Regex::new(URL_REGEX).expect("Unable to parse the URL_REGEX");
-		if regex.is_match(&url_string) { // TODO Do a check for size of peer list
+		if regex.is_match(&url_string) {
 			if let Ok(url) = Url::from_str(&url_string) {
 				return if node.peers.read().await.len() < node.config.max_peers {
 					if node.peers.read().await.iter().any(|x| x.to_url().host_str() == Some(&addr.to_string())) { // If the address is already peer
@@ -68,7 +68,7 @@ pub async fn handle_pair_up(node: web::Data<Node>, msg: StandardExtractor<PairUp
 pub async fn handle_unpair(node: web::Data<Node>, msg: StandardExtractor<PairUp>, req: HttpRequest) -> impl Responder {
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version { 
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 

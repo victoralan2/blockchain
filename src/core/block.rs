@@ -116,10 +116,3 @@ impl Block {
 		self.header.is_genesis()
 	}
 }
-pub enum BlockValidity {
-	/// Meaning is not valid
-	NotValid, 
-	/// /// Meaning that it is better than the current last block of the blockchain and should REPLACE it
-	BetterThanLastBlock, 
-	Valid,
-}

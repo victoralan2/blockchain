@@ -8,8 +8,6 @@ use rand_core::OsRng;
 
 pub struct PublicKeyAlgorithm;
 
-
-
 impl PublicKeyAlgorithm {
 	/*
 	Returns a randomly generated public and private key: (public_key, private_key)

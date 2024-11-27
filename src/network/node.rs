@@ -25,7 +25,6 @@ use crate::consensus::miner::Miner;
 use crate::core::address::P2PKHAddress;
 use crate::core::block::Block;
 use crate::core::blockchain::BlockChain;
-use crate::core::keys::NodeKeyChain;
 use crate::core::parameters::Parameters;
 use crate::core::utxo::transaction::Transaction;
 use crate::data_storage::node_config_storage::node_config::NodeConfig;
@@ -38,7 +37,6 @@ use crate::network::standard::standard_serialize;
 
 #[derive(Clone)]
 pub struct Node {
-	// TODO: Keys... and stuff
 	pub version: u32,
 	pub recently_seen_ids: Arc<RwLock<HashSet<[u8; 32]>>>,
 	pub blockchain: Arc<RwLock<BlockChain>>,
@@ -47,15 +45,14 @@ pub struct Node {
 	reward_address: P2PKHAddress,
 	pub server_handle: Option<ServerHandle>,
 	pub config: NodeConfig,
-	pub parameters: Parameters,  // TODO: Keep in mind that if something changes that is not Arc<> it will not be updated in the main loop
+	pub parameters: Parameters,
 	pub should_mine: Arc<AtomicBool>
 }
 
 impl Node {
 	pub async fn default(version: u32) -> Self {
 		let parameters = Parameters::default();
-		let key_chain = NodeKeyChain::random();
-		let reward_address = key_chain.address;
+		let reward_address = P2PKHAddress::random().0;
 		let config = NodeConfig::default();
 		Self {
 			version,
@@ -65,13 +62,12 @@ impl Node {
 			reward_address,
 			server_handle: None,
 			config,
-			peers: Arc::new(Default::default()), // TODO: Load from default file
+			peers: Arc::new(Default::default()),
 			parameters,
 			should_mine: Arc::new(AtomicBool::new(true)),
 		}
 	}
 	pub async fn new(version: u32, config_file: Option<String>, parameters: Parameters) -> Self {
-		// TODO: Store in some way the keychain
 		let config = NodeConfig::load_or_create(config_file);
 		let peers = config.trusted_peers.clone();
 		let reward_address = P2PKHAddress::from_string(config.reward_address.clone()).unwrap_or_else(|e| {
@@ -101,7 +97,6 @@ impl Node {
 		log::info!("Node started successfully");
 		let self_clone = self.clone();
 		tokio::spawn(async move {
-			// TODO: Give miner needed info
 			loop {
 				let mined_block = Miner::start_mining(Arc::clone(&self_clone.blockchain), self_clone.reward_address, self_clone.should_mine.clone()).await;
 				log::info!("Block mined successfully!");

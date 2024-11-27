@@ -39,7 +39,7 @@ pub async fn handle_get_utxos(node: web::Data<Node>, msg: StandardExtractor<GetU
 pub async fn handle_get_blocks(node: web::Data<Node>, msg: StandardExtractor<GetBlocks>) -> impl Responder {
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 
@@ -65,7 +65,7 @@ pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetDa
 
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 	
@@ -75,7 +75,6 @@ pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetDa
 	
 	match data_type {
 		InvDataType::Transaction => {
-			// TODO
 			HttpResponse::Ok().finish()
 		}
 		InvDataType::Block => {
@@ -100,7 +99,7 @@ pub async fn handle_get_data(node: web::Data<Node>, msg: StandardExtractor<GetDa
 pub async fn handle_get_headers(node: web::Data<Node>, msg: StandardExtractor<GetHeaders>) -> impl Responder {
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 

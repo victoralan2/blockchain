@@ -10,7 +10,6 @@ pub struct UndoTransaction {
 	/// The UTxOs that the transaction removed to the UTXOSet
 	pub removed_utxos: Vec<([u8; 32], UTXO)>,
 }
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UndoBlock {
 	pub height: usize,

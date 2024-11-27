@@ -6,12 +6,11 @@ use std::time::SystemTime;
 use chrono::{DateTime, Local};
 use fern::colors::{Color, ColoredLevelConfig};
 use log::LevelFilter;
-
-const LOGS_PATH: &str = "./logs/"; // TODO: Make this modifiable with command arguments
-
+use crate::data_storage::BaseDirectory;
+use crate::data_storage::node_config_storage::NODE_DIRECTORY_NAME;
 
 pub fn setup_logger() -> Result<(), fern::InitError> {
-	fs::create_dir(LOGS_PATH).ok();
+	fs::create_dir(format!("{}/{}/logs/", BaseDirectory::get_base_directory(), NODE_DIRECTORY_NAME))?;
 	let colors_config = ColoredLevelConfig::new()
 		.error(Color::Red)
 		.warn(Color::Yellow)
@@ -35,7 +34,7 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
 					record.target(),
 					message
 				))
-			}).chain(fern::log_file(format!("{}/{}.log", LOGS_PATH, file_timestamp))?) // TODO: Change the creation of the file to a fixed place
+			}).chain(fern::log_file(format!("{}/{}/logs/{}.log", BaseDirectory::get_base_directory(), NODE_DIRECTORY_NAME, file_timestamp))?) // TODO: Change the creation of the file to a fixed place
 		)
 		.chain(fern::Dispatch::new()
 			.format(move |out, message, record| {

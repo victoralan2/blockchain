@@ -64,7 +64,6 @@ impl Transaction {
 				}
 			}
 		}
-		info!("SUM: B: {}, S: {}", budget, spent);
 		budget == spent
 	}
 	pub fn is_valid_heuristic(&self) -> bool {

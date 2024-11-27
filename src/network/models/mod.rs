@@ -90,11 +90,9 @@ pub struct Unpair {
 pub struct NewTransaction {
 	pub(crate) version: u32,
 	pub(crate) transaction: Transaction,
-	// TODO: Some extra info from https://www.blockchain.com/explorer/es/explorer/api/blockchain_api
 }
 #[derive(Clone, Deserialize, Serialize)]
 pub struct NewBlock {
 	pub(crate) version: u32,
 	pub(crate) block: Block,
-	// TODO: Some extra info from https://www.blockchain.com/explorer/es/explorer/api/blockchain_api
 }

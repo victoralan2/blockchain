@@ -10,15 +10,11 @@ pub mod block;
 pub mod address;
 pub mod utxo;
 pub mod parameters;
-pub mod keys;
-
 pub trait Hashable {
 	fn calculate_hash(&self) -> [u8; 32];
 	fn update_hash(&mut self);
 }
 impl Hashable for Block {
-	/// IMPORTANT
-	/// CHECK VALIDITY OF DATA BEFORE CALCULATING HASH. HASH DOES NOT CHECK FOR ERRORS IN COHERENCE
 	fn calculate_hash(&self) -> [u8; 32]{
 		let header = &self.header;
 		let merkle_tree = self.calculate_merkle_tree();
@@ -32,8 +28,6 @@ impl Hashable for Block {
 	}
 }
 impl Hashable for Transaction {
-	/// IMPORTANT
-	/// CHECK VALIDITY OF DATA BEFORE CALCULATING HASH. HASH DOES NOT CHECK FOR ERRORS IN COHERENCE
 	fn calculate_hash(&self) -> [u8; 32] {
 		let input_hash_list = self.input_list.iter().map(|x|x.calculate_hash()).collect();
 		let inputs = hex::encode(calculate_merkle_root(input_hash_list));

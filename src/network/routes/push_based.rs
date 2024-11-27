@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, Responder, web};
+use base58::ToBase58;
 use log::info;
 use reqwest::Client;
 use crate::core::block::{Block};
@@ -26,7 +27,7 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 	
 	let mut blockchain = node.blockchain.write().await;
 	if blockchain.add_transaction_to_mempool(transaction) {
-		info!("Got a new transaction. ID: \"{:?}\"", transaction.id);
+		info!("Got a new transaction. ID: \"{:?}\"", transaction.id.to_base58());
 		let peers = node.peers.read().await;
 		Node::broadcast_transaction(&node, peers.clone(), &msg.into_inner()).await;
 		HttpResponse::Ok().finish()
@@ -36,11 +37,10 @@ pub async fn handle_tx(node: web::Data<Node>, msg: StandardExtractor<NewTransact
 }
 
 pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock>) -> impl Responder {
-	// TODO: DEFENETLY CHECK THIS FUNCTION LOL
-	// TODO CHECK IF THE BLOCK IS THE SAME HEIGHT AS THE CURRENT ONE AND STILL VALID
+	
 	let request_version = msg.version;
 	let required_version = node.version;
-	if request_version != required_version { // TODO: Make version compatibility
+	if request_version != required_version {
 		return HttpResponse::BadRequest().body(ErrorType::WrongVersion(request_version, node.version).to_string());
 	}
 
@@ -59,7 +59,6 @@ pub async fn handle_block(node: web::Data<Node>, msg: StandardExtractor<NewBlock
 		// Is next block
 		if blockchain.add_block(block) {
 			info!("Received valid block with hash {} and height {}", hex::encode(block.header.hash), block.header.height);
-			// TODO: Uncomment when no more testing
 			node.broadcast_block(&msg.into_inner(), &node.peers.read().await.clone()).await;
 			HttpResponse::Ok().finish()
 

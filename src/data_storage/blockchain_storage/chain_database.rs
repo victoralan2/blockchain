@@ -15,7 +15,7 @@ use crate::data_storage::blockchain_storage::undo_items::{UndoBlock};
 use crate::network::standard::{standard_deserialize, standard_serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ChainMetadata { // TODO: Make sure everything here is updated each and every write
+pub struct ChainMetadata {
 	/// This is equivalent to the height of the best block **minus one**
 	length: usize,
 	best_block: [u8; 32],
@@ -184,19 +184,19 @@ impl Default for ChainDB {
 		let chain_db = sled::open(format!("{}/{}/{}", 
 										  base_directory, 
 										  BLOCKCHAIN_DIRECTORY_NAME, 
-										  CHAIN_DIRECTORY_NAME)).expect("failed to write to database"); // FIXME: Change the file for the actual Db location
+										  CHAIN_DIRECTORY_NAME)).expect("failed to write to database");
 		let index_to_hash_db = sled::open(format!("{}/{}/{}", 
 												  base_directory, 
 												  BLOCKCHAIN_DIRECTORY_NAME, 
-												  INDEX_DIRECTORY_NAME)).expect("failed to write to database"); // FIXME: Change the file for the actual Db location
+												  INDEX_DIRECTORY_NAME)).expect("failed to write to database");
 		let undo_block_db = sled::open(format!("{}/{}/{}", 
 											   base_directory, 
 											   BLOCKCHAIN_DIRECTORY_NAME, 
-											   UNDO_DIRECTORY_NAME)).expect("failed to write to database"); // FIXME: Change the file for the actual Db location
+											   UNDO_DIRECTORY_NAME)).expect("failed to write to database");
 		let index_undo_block_db = sled::open(format!("{}/{}/{}", 
 													 base_directory, 
 													 BLOCKCHAIN_DIRECTORY_NAME, 
-													 UNDO_INDEX_DIRECTORY_NAME)).expect("failed to write to database"); // FIXME: Change the file for the actual Db location
+													 UNDO_INDEX_DIRECTORY_NAME)).expect("failed to write to database");
 
 		let chain_metadata = ChainMetadata::load();
 		let mut this = Self {
